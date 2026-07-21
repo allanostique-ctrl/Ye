@@ -1,0 +1,232 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: #f4f6f9;
+  color: #1a2233;
+}
+
+/* Shared "looks like a button" rules — applied to button, a.btn, and Link (rendered as <a>) alike
+   so links styled as buttons never drift out of sync with real buttons. */
+.btn,
+button.btn,
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.1;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: white;
+  color: #1a2233;
+  border-color: #d3d9e3;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #eef1f6;
+}
+
+.btn-danger {
+  background: #fff0f0;
+  color: #b42318;
+  border-color: #f3c8c4;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #fde2e0;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #475269;
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: #e9ecf3;
+}
+
+.btn-sm {
+  padding: 0.32rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e3e7ee;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+
+.field-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #55617a;
+  margin-bottom: 0.25rem;
+}
+
+.field-input,
+select.field-input,
+textarea.field-input {
+  width: 100%;
+  border: 1px solid #d3d9e3;
+  border-radius: 0.45rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.875rem;
+  background: white;
+  color: #1a2233;
+}
+
+.field-input:focus {
+  outline: 2px solid #93b4f8;
+  outline-offset: 0;
+  border-color: #2563eb;
+}
+
+.field-input[data-overridden="true"] {
+  border-color: #d08700;
+  background: #fffbeb;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #d3d9e3;
+  background: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475269;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+
+.pill[data-active="true"] {
+  background: #eaf1ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.pill:hover {
+  border-color: #93b4f8;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7690;
+  border-bottom: 2px solid #e3e7ee;
+  padding: 0.5rem 0.6rem;
+  white-space: nowrap;
+}
+
+.data-table td {
+  border-bottom: 1px solid #edf0f5;
+  padding: 0.35rem 0.6rem;
+  vertical-align: middle;
+}
+
+.data-table tr.section-header td {
+  background: #f0f3f9;
+  font-weight: 700;
+  color: #1a2233;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.data-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid #e3e7ee;
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #eaf1ff;
+  color: #1d4ed8;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+/* Bottom, viewport-fixed horizontal scrollbar that drives every wide table on the page in sync */
+.synced-scroll-track {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  background: #eef1f6;
+  border-top: 1px solid #d3d9e3;
+  z-index: 40;
+}
+.synced-scroll-track > div {
+  height: 1px;
+}
+.synced-scroll-body {
+  overflow-x: scroll;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.synced-scroll-body::-webkit-scrollbar {
+  display: none;
+}
