@@ -317,7 +317,7 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                     </div>
                   </th>
                 ))}
-                <th>Total</th>
+                <th>Total / Max</th>
               </tr>
             </thead>
             <tbody>
@@ -383,11 +383,9 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                     })}
                     <td className={`font-bold ${exceeds ? 'text-amber-600' : ''}`}>
                       {fmt(total)}
-                      {exceeds && (
-                        <div className="text-xs font-normal text-amber-600">
-                          ⚠ exceeds HOVER total ({fmt(reference)})
-                        </div>
-                      )}
+                      <div className={`text-xs font-normal ${exceeds ? 'text-amber-600' : 'text-gray-400'}`}>
+                        {exceeds ? `⚠ exceeds max (${fmt(reference)})` : `of ${fmt(reference)} max`}
+                      </div>
                     </td>
                   </tr>
                 );
