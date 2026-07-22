@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
   try {
     const text = await extractTextFromPdf(buffer);
     const measurements = extractMeasurementsFromText(text);
-    return NextResponse.json({ measurements, fileName: file.name });
+    // Always include the raw extracted text — the Measurements tab surfaces it
+    // when auto-fill comes up short so it's obvious what happened, and it can
+    // be copied back for tuning the label-matching patterns.
+    return NextResponse.json({ measurements, fileName: file.name, rawText: text });
   } catch (err) {
     return NextResponse.json(
       { error: `Could not parse PDF: ${err instanceof Error ? err.message : 'unknown error'}` },

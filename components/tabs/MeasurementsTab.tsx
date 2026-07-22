@@ -4,10 +4,10 @@ import { useRef, useState } from 'react';
 import {
   CalculatorDraft,
   MeasurementFieldKey,
+  MEASUREMENT_FIELDS,
   emptyMeasurementSection,
 } from '@/lib/types';
 import { effectiveMeasurements } from '@/lib/calc/measurements';
-import { NumberField } from '@/components/NumberField';
 import { NextButton } from '@/components/NextButton';
 
 interface Props {
@@ -16,7 +16,11 @@ interface Props {
   onNext: () => void;
 }
 
-const PER_SECTION_KEYS: { key: 'facadeAreaSqft' | 'openingsPerimeterLnft' | 'outsideCornerLengthLnft' | 'insideCornerLengthLnft' | 'starterLengthLnft'; label: string; unit: string }[] = [
+const PER_SECTION_KEYS: {
+  key: 'facadeAreaSqft' | 'openingsPerimeterLnft' | 'outsideCornerLengthLnft' | 'insideCornerLengthLnft' | 'starterLengthLnft';
+  label: string;
+  unit: string;
+}[] = [
   { key: 'facadeAreaSqft', label: 'Facade Area', unit: 'sqft' },
   { key: 'openingsPerimeterLnft', label: 'Openings Perimeter', unit: 'lnft' },
   { key: 'outsideCornerLengthLnft', label: 'Outside Corner', unit: 'lnft' },
@@ -24,9 +28,15 @@ const PER_SECTION_KEYS: { key: 'facadeAreaSqft' | 'openingsPerimeterLnft' | 'out
   { key: 'starterLengthLnft', label: 'Starter Length', unit: 'lnft' },
 ];
 
+function fmt(n: number): string {
+  return (n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
 export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rawText, setRawText] = useState<string | null>(null);
+  const [showRawText, setShowRawText] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const m = draft.measurements;
   const em = effectiveMeasurements(m);
@@ -48,7 +58,10 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
       measurements: {
         ...d.measurements,
         multiSection: on,
-        sections: on && d.measurements.sections.length === 0 ? [emptyMeasurementSection('Section 1')] : d.measurements.sections,
+        sections:
+          on && d.measurements.sections.length === 0
+            ? [emptyMeasurementSection('Section 1'), emptyMeasurementSection('Section 2')]
+            : d.measurements.sections,
       },
     }));
   }
@@ -70,7 +83,7 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
     }));
   }
 
-  function updateSection(id: string, patch: Partial<typeof m.sections[number]>) {
+  function updateSection(id: string, patch: Partial<(typeof m.sections)[number]>) {
     updateDraft((d) => ({
       ...d,
       measurements: {
@@ -83,6 +96,7 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
   async function handleUpload(file: File) {
     setUploading(true);
     setError(null);
+    setRawText(null);
     try {
       const form = new FormData();
       form.append('file', file);
@@ -93,6 +107,15 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
         return;
       }
       const parsed: Partial<Record<MeasurementFieldKey, number>> = data.measurements ?? {};
+      setRawText(typeof data.rawText === 'string' ? data.rawText : null);
+      if (Object.keys(parsed).length === 0) {
+        setError(
+          "Parsed the PDF, but couldn't find any recognizable measurement labels in it — see the extracted text below and send it to me so I can fix the matching."
+        );
+        setShowRawText(true);
+      } else if (Object.keys(parsed).length < MEASUREMENT_FIELDS.length) {
+        setShowRawText(false);
+      }
       updateDraft((d) => {
         const next = { ...d.measurements };
         next.raw = { ...next.raw, ...parsed };
@@ -112,12 +135,14 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
     }
   }
 
+  const unmatchedFields = MEASUREMENT_FIELDS.filter((f) => m.raw[f.key] === undefined);
+
   return (
     <div className="space-y-6">
       <div className="card">
         <h2 className="mb-1 text-lg font-bold">Measurements</h2>
         <p className="mb-4 text-sm text-gray-500">
-          Upload a HOVER &ldquo;Complete Measurements&rdquo; PDF to auto-fill the fields below, then override anything
+          Upload a HOVER &ldquo;Complete Measurements&rdquo; PDF to auto-fill the table below, then override anything
           that needs adjusting — edited values (not the raw PDF numbers) drive every calculation downstream.
         </p>
         <div className="flex items-center gap-3">
@@ -142,6 +167,61 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
           )}
         </div>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {!error && m.pdfFileName && unmatchedFields.length > 0 && (
+          <p className="mt-2 text-sm text-amber-600">
+            ⚠ Couldn&rsquo;t find a value for: {unmatchedFields.map((f) => f.label).join(', ')}. Enter those by hand
+            below, or check the extracted text.
+          </p>
+        )}
+        {rawText && (
+          <div className="mt-3">
+            <button className="text-xs font-semibold text-brand-600 underline" onClick={() => setShowRawText((v) => !v)}>
+              {showRawText ? 'Hide' : 'Show'} extracted PDF text (for troubleshooting)
+            </button>
+            {showRawText && (
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
+                {rawText}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h3 className="mb-3 font-bold">Reference Measurements</h3>
+        <p className="mb-3 text-xs text-gray-500">
+          This table holds the totals for the whole job — auto-filled from the HOVER PDF above and always editable.
+        </p>
+        <table className="data-table" style={{ maxWidth: 480 }}>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th className="text-right">Value</th>
+              <th>Unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MEASUREMENT_FIELDS.map((f) => (
+              <tr key={f.key}>
+                <td className="font-medium">
+                  {f.label}
+                  {m.overridden[f.key] && <span className="badge ml-2 bg-amber-100 text-amber-700">edited</span>}
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    step="any"
+                    className="field-input text-right"
+                    data-overridden={m.overridden[f.key] ? 'true' : 'false'}
+                    value={m[f.key]}
+                    onChange={(e) => setField(f.key, parseFloat(e.target.value) || 0)}
+                  />
+                </td>
+                <td className="text-gray-400">{f.unit}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div className="card">
@@ -152,57 +232,20 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
             checked={m.multiSection}
             onChange={(e) => setMultiSection(e.target.checked)}
           />
-          {m.multiSection ? '☑' : '☐'} Multiple siding areas — enter measurements per section
+          {m.multiSection ? '☑' : '☐'} Multiple siding areas — divide the totals above across sections
         </label>
         <p className="mt-2 text-xs text-gray-500">
           Turn this on when a job mixes siding materials across different elevations and HOVER&rsquo;s single facade
-          total doesn&rsquo;t break things out the way you need. A manual table replaces the facade/openings/corner
-          fields below, and section totals feed the rest of the job.
+          total doesn&rsquo;t break things out the way you need. The Reference Measurements above stay put as your
+          total; this table lets you split facade area, openings, corners, and starter length across named sections,
+          and the section totals — not the reference row — feed the rest of the job.
         </p>
       </div>
 
-      {!m.multiSection ? (
-        <div className="card grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <NumberField
-            label="Facade Area"
-            unit="sqft"
-            value={m.facadeAreaSqft}
-            overridden={!!m.overridden.facadeAreaSqft}
-            onChange={(v) => setField('facadeAreaSqft', v)}
-          />
-          <NumberField
-            label="Openings Perimeter"
-            unit="lnft"
-            value={m.openingsPerimeterLnft}
-            overridden={!!m.overridden.openingsPerimeterLnft}
-            onChange={(v) => setField('openingsPerimeterLnft', v)}
-          />
-          <NumberField
-            label="Outside Corner Length"
-            unit="lnft"
-            value={m.outsideCornerLengthLnft}
-            overridden={!!m.overridden.outsideCornerLengthLnft}
-            onChange={(v) => setField('outsideCornerLengthLnft', v)}
-          />
-          <NumberField
-            label="Inside Corner Length"
-            unit="lnft"
-            value={m.insideCornerLengthLnft}
-            overridden={!!m.overridden.insideCornerLengthLnft}
-            onChange={(v) => setField('insideCornerLengthLnft', v)}
-          />
-          <NumberField
-            label="Starter Length"
-            unit="lnft"
-            value={m.starterLengthLnft}
-            overridden={!!m.overridden.starterLengthLnft}
-            onChange={(v) => setField('starterLengthLnft', v)}
-          />
-        </div>
-      ) : (
+      {m.multiSection && (
         <div className="card overflow-x-auto">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-bold">Per-Section Measurements</h3>
+            <h3 className="font-bold">Divide Siding Areas by Section</h3>
             <button className="btn btn-secondary btn-sm" onClick={addSection}>
               + Add Section
             </button>
@@ -250,42 +293,22 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
             </tbody>
             <tfoot>
               <tr>
-                <td>Totals</td>
-                <td>{em.facadeAreaSqft.toFixed(1)}</td>
-                <td>{em.openingsPerimeterLnft.toFixed(1)}</td>
-                <td>{em.outsideCornerLengthLnft.toFixed(1)}</td>
-                <td>{em.insideCornerLengthLnft.toFixed(1)}</td>
-                <td>{em.starterLengthLnft.toFixed(1)}</td>
+                <td>Section Totals</td>
+                <td>{fmt(em.facadeAreaSqft)}</td>
+                <td>{fmt(em.openingsPerimeterLnft)}</td>
+                <td>{fmt(em.outsideCornerLengthLnft)}</td>
+                <td>{fmt(em.insideCornerLengthLnft)}</td>
+                <td>{fmt(em.starterLengthLnft)}</td>
                 <td></td>
               </tr>
             </tfoot>
           </table>
+          <p className="mt-2 text-xs text-gray-500">
+            Reference facade area is {fmt(m.facadeAreaSqft)} sqft — section totals above are what actually feed the
+            calculator.
+          </p>
         </div>
       )}
-
-      <div className="card grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <NumberField
-          label="Fascia Length"
-          unit="lnft"
-          value={m.fasciaLengthLnft}
-          overridden={!!m.overridden.fasciaLengthLnft}
-          onChange={(v) => setField('fasciaLengthLnft', v)}
-        />
-        <NumberField
-          label="Soffit Area"
-          unit="sqft"
-          value={m.soffitAreaSqft}
-          overridden={!!m.overridden.soffitAreaSqft}
-          onChange={(v) => setField('soffitAreaSqft', v)}
-        />
-        <NumberField
-          label="Gutter Length"
-          unit="lnft"
-          value={m.gutterLengthLnft}
-          overridden={!!m.overridden.gutterLengthLnft}
-          onChange={(v) => setField('gutterLengthLnft', v)}
-        />
-      </div>
 
       <NextButton onClick={onNext} label="Next: Checklist" />
     </div>
