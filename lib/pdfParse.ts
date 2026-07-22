@@ -58,9 +58,14 @@ const FIELD_PATTERNS: FieldPattern[] = [
     loose: /starter/i,
   },
   {
-    key: 'fasciaLengthLnft',
-    aliases: [/fascia\s+length/i, /total\s+fascia/i, /fascia\s+board/i, /eaves\s+fascia/i],
-    loose: /fascia/i,
+    key: 'eavesLengthLnft',
+    aliases: [/eaves\s+fascia/i, /eaves?\s+length/i, /fascia\s+length/i, /total\s+fascia/i, /fascia\s+board/i],
+    loose: /fascia|eave/i,
+  },
+  {
+    key: 'gablesLengthLnft',
+    aliases: [/rakes?\s+fascia/i, /gables?\s+length/i, /rakes?\s+length/i],
+    loose: /rake|gable/i,
   },
   {
     key: 'soffitAreaSqft',
@@ -201,12 +206,12 @@ function extractHoverTemplate(fullText: string): Partial<Record<MeasurementField
   const starter = matchInLines(summaryLines, /level\s+starter/i, firstLength);
   if (starter !== null) result.starterLengthLnft = starter;
 
-  // Fascia runs along both eaves and rakes — sum whichever of the two are present.
+  // Fascia runs along both eaves and rakes — HOVER reports them as separate table rows,
+  // which map directly onto the Eaves/Gables top-of-siding trim split.
   const eavesFascia = matchInLines(summaryLines, /eaves\s+fascia/i, firstLength);
   const rakesFascia = matchInLines(summaryLines, /rakes\s+fascia/i, firstLength);
-  if (eavesFascia !== null || rakesFascia !== null) {
-    result.fasciaLengthLnft = Math.round(((eavesFascia ?? 0) + (rakesFascia ?? 0)) * 100) / 100;
-  }
+  if (eavesFascia !== null) result.eavesLengthLnft = eavesFascia;
+  if (rakesFascia !== null) result.gablesLengthLnft = rakesFascia;
 
   // Dedicated Soffit Summary page: "Totals  302' 6"  796 ft²" — take the area (last), not the length.
   for (const line of soffitLines) {

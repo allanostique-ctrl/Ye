@@ -15,6 +15,17 @@ const CATEGORY_CORRECTIONS: Record<string, Category> = {
 };
 
 /**
+ * "Eaves + Gables" used to be one combined top-of-siding trim mode; it's now the
+ * dedicated "Gables" item (paired with a separate always-available "Eaves" item), so its
+ * old default name is stale. Only renames items still carrying the exact old default name —
+ * if a user already renamed it themselves, their name wins and is left alone.
+ */
+const NAME_CORRECTIONS: Record<string, { from: string; to: string }> = {
+  'acc-top-trim-eaves-only': { from: 'Top-of-Siding Trim — Eaves Only', to: 'Top-of-Siding Trim — Eaves' },
+  'acc-top-trim-eaves-gables': { from: 'Top-of-Siding Trim — Eaves + Gables', to: 'Top-of-Siding Trim — Gables' },
+};
+
+/**
  * Merge newly-introduced default catalog items into a user's saved price book
  * without touching anything they've already saved or deleted.
  *
@@ -46,8 +57,16 @@ export function migratePriceBook(stored: unknown): PriceBook {
   }
 
   items = items.map((item) => {
-    const correctedCategory = CATEGORY_CORRECTIONS[item.id];
-    return correctedCategory && item.category !== correctedCategory ? { ...item, category: correctedCategory } : item;
+    let next = item;
+    const correctedCategory = CATEGORY_CORRECTIONS[next.id];
+    if (correctedCategory && next.category !== correctedCategory) {
+      next = { ...next, category: correctedCategory };
+    }
+    const nameCorrection = NAME_CORRECTIONS[next.id];
+    if (nameCorrection && next.name === nameCorrection.from) {
+      next = { ...next, name: nameCorrection.to };
+    }
+    return next;
   });
 
   return {

@@ -81,7 +81,8 @@ export type MeasurementFieldKey =
   | 'outsideCornerLengthLnft'
   | 'insideCornerLengthLnft'
   | 'starterLengthLnft'
-  | 'fasciaLengthLnft'
+  | 'eavesLengthLnft'
+  | 'gablesLengthLnft'
   | 'soffitAreaSqft'
   | 'gutterLengthLnft';
 
@@ -91,7 +92,8 @@ export const MEASUREMENT_FIELDS: { key: MeasurementFieldKey; label: string; unit
   { key: 'outsideCornerLengthLnft', label: 'Outside Corner Length', unit: 'lnft' },
   { key: 'insideCornerLengthLnft', label: 'Inside Corner Length', unit: 'lnft' },
   { key: 'starterLengthLnft', label: 'Starter Length', unit: 'lnft' },
-  { key: 'fasciaLengthLnft', label: 'Fascia Length', unit: 'lnft' },
+  { key: 'eavesLengthLnft', label: 'Eaves Length', unit: 'lnft' },
+  { key: 'gablesLengthLnft', label: 'Gables (Rake) Length', unit: 'lnft' },
   { key: 'soffitAreaSqft', label: 'Soffit Area', unit: 'sqft' },
   { key: 'gutterLengthLnft', label: 'Gutter Length', unit: 'lnft' },
 ];
@@ -128,7 +130,8 @@ export interface Measurements {
   outsideCornerLengthLnft: number;
   insideCornerLengthLnft: number;
   starterLengthLnft: number;
-  fasciaLengthLnft: number;
+  eavesLengthLnft: number;
+  gablesLengthLnft: number;
   soffitAreaSqft: number;
   gutterLengthLnft: number;
   /** Raw values as extracted from the HOVER PDF, kept for reference — never fed into calculations directly. */
@@ -149,7 +152,8 @@ export function emptyMeasurements(): Measurements {
     outsideCornerLengthLnft: 0,
     insideCornerLengthLnft: 0,
     starterLengthLnft: 0,
-    fasciaLengthLnft: 0,
+    eavesLengthLnft: 0,
+    gablesLengthLnft: 0,
     soffitAreaSqft: 0,
     gutterLengthLnft: 0,
     raw: {},
@@ -208,8 +212,6 @@ export interface SidingTypeRow {
 
 // ---------- Trim configuration ----------
 
-export type TopOfSidingMode = 'eaves-only' | 'eaves-gables';
-
 export interface TrimField<T> {
   value: T;
   overridden: boolean;
@@ -225,7 +227,10 @@ export interface TrimConfig {
   insideCornerProductId: TrimField<ID | null>;
   starterProductId: TrimField<ID | null>;
   fastenerProductId: TrimField<ID | null>;
-  topOfSidingMode: TrimField<TopOfSidingMode>;
+  /** Both independently selectable — a job can run top-of-siding trim along the eaves, the
+   *  gables (rakes), or both, and each generates its own calculated line item. */
+  eavesTrim: TrimField<boolean>;
+  gablesTrim: TrimField<boolean>;
   buttJointFlashing: TrimField<boolean>;
   touchUpPaint: TrimField<boolean>;
   caulkSealant: TrimField<boolean>;
@@ -240,7 +245,8 @@ export function defaultTrimConfig(): TrimConfig {
     insideCornerProductId: tf<ID | null>(null),
     starterProductId: tf<ID | null>(null),
     fastenerProductId: tf<ID | null>(null),
-    topOfSidingMode: tf<TopOfSidingMode>('eaves-only'),
+    eavesTrim: tf(true),
+    gablesTrim: tf(false),
     buttJointFlashing: tf(false),
     touchUpPaint: tf(false),
     caulkSealant: tf(false),
@@ -466,10 +472,16 @@ export function defaultDraft(jobId: ID): CalculatorDraft {
  *  localStorage data doesn't crash the app — not a full migration system,
  *  just defensive defaults for an in-progress schema. */
 export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
+  // Pre-split measurements had a single combined "Fascia Length" (eaves + rakes summed).
+  // Fold it into the eaves bucket so old jobs' Fascia section totals are unaffected;
+  // the user can check Gables and split the length out by hand if a job needs it.
+  const legacyMeasurements = draft.measurements as unknown as { fasciaLengthLnft?: number } | undefined;
   return {
     ...draft,
     measurements: {
       ...draft.measurements,
+      eavesLengthLnft: draft.measurements?.eavesLengthLnft ?? legacyMeasurements?.fasciaLengthLnft ?? 0,
+      gablesLengthLnft: draft.measurements?.gablesLengthLnft ?? 0,
       sections: (draft.measurements?.sections ?? []).map((s) => ({
         ...s,
         sidingKey: s.sidingKey ?? null,
@@ -479,11 +491,20 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
       ...draft.quoteDetails,
       equipmentRental: draft.quoteDetails?.equipmentRental ?? [],
     },
-    sidingTypeRows: (draft.sidingTypeRows ?? []).map((row) => ({
-      ...row,
-      sectionIds: row.sectionIds ?? [],
-      trimConfig: { ...defaultTrimConfig(), ...row.trimConfig },
-    })),
+    sidingTypeRows: (draft.sidingTypeRows ?? []).map((row) => {
+      const legacyTrim = row.trimConfig as unknown as { topOfSidingMode?: { value: string } } | undefined;
+      const trimConfig: TrimConfig = { ...defaultTrimConfig(), ...row.trimConfig };
+      if (legacyTrim?.topOfSidingMode && !row.trimConfig?.eavesTrim && !row.trimConfig?.gablesTrim) {
+        trimConfig.eavesTrim = tf(true);
+        trimConfig.gablesTrim = tf(legacyTrim.topOfSidingMode.value === 'eaves-gables');
+      }
+      delete (trimConfig as any).topOfSidingMode;
+      return {
+        ...row,
+        sectionIds: row.sectionIds ?? [],
+        trimConfig,
+      };
+    }),
     lineItemOverrides: draft.lineItemOverrides ?? {},
   };
 }

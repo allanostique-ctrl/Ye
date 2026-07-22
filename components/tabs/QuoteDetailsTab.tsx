@@ -6,7 +6,6 @@ import {
   PriceBook,
   PriceBookItem,
   SidingTypeRow,
-  TopOfSidingMode,
   WORK_SECTIONS,
   sidingKey,
 } from '@/lib/types';
@@ -131,17 +130,22 @@ function SidingAccessoriesCard({
       <div className="mt-4">
         <label className="field-label">Top-of-Siding Trim</label>
         <div className="flex gap-2">
-          {(['eaves-only', 'eaves-gables'] as TopOfSidingMode[]).map((mode) => (
-            <button
-              key={mode}
-              className="pill"
-              data-active={tc.topOfSidingMode.value === mode ? 'true' : 'false'}
-              onClick={() => onUpdateTrim('topOfSidingMode', mode)}
-            >
-              {mode === 'eaves-only' ? 'Eaves Only' : 'Eaves + Gables'}
-            </button>
-          ))}
+          <button
+            className="pill"
+            data-active={tc.eavesTrim.value ? 'true' : 'false'}
+            onClick={() => onUpdateTrim('eavesTrim', !tc.eavesTrim.value)}
+          >
+            {tc.eavesTrim.value ? '☑' : '☐'} Eaves
+          </button>
+          <button
+            className="pill"
+            data-active={tc.gablesTrim.value ? 'true' : 'false'}
+            onClick={() => onUpdateTrim('gablesTrim', !tc.gablesTrim.value)}
+          >
+            {tc.gablesTrim.value ? '☑' : '☐'} Gables
+          </button>
         </div>
+        <p className="mt-1 text-xs text-gray-500">Select either or both — each calculates its own line item.</p>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

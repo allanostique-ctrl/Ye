@@ -189,31 +189,52 @@ export function computeCalculation(
         );
       }
 
-      // Top-of-siding trim runs the eave line, allocated by this row's share of total siding
-      // area since HOVER's export doesn't report roofline length per siding material; "eaves
-      // + gables" adds an estimated allowance for gable rakes on top of that.
-      const topTrimId = tc.topOfSidingMode.value === 'eaves-gables' ? ACCESSORY_IDS.topTrimEavesGables : ACCESSORY_IDS.topTrimEavesOnly;
-      const topTrimItem = findItem(priceBook, topTrimId);
-      const rowFasciaShare = draft.measurements.fasciaLengthLnft * roofLineShare;
-      if (topTrimItem && rowFasciaShare > 0) {
-        const gableAllowance = tc.topOfSidingMode.value === 'eaves-gables' ? 1.4 : 1;
-        lines.push(
-          buildLine(
-            'siding',
-            topTrimItem,
-            rowFasciaShare * gableAllowance,
-            topTrimItem.wastePct,
-            'up',
-            rules.laborRateMultiplier,
-            `siding-${row.id}-topTrim`
-          )
-        );
+      // Top-of-siding trim runs along the eaves and/or gable rakes, each allocated by this
+      // row's share of total siding area (HOVER's export doesn't report roofline length per
+      // siding material). Eaves and gables are independently selectable and each produces
+      // its own line item when both are checked.
+      const rowEavesShare = draft.measurements.eavesLengthLnft * roofLineShare;
+      const rowGablesShare = draft.measurements.gablesLengthLnft * roofLineShare;
+
+      if (tc.eavesTrim.value) {
+        const eavesTrimItem = findItem(priceBook, ACCESSORY_IDS.topTrimEavesOnly);
+        if (eavesTrimItem && rowEavesShare > 0) {
+          lines.push(
+            buildLine(
+              'siding',
+              eavesTrimItem,
+              rowEavesShare,
+              eavesTrimItem.wastePct,
+              'up',
+              rules.laborRateMultiplier,
+              `siding-${row.id}-eavesTrim`
+            )
+          );
+        }
       }
 
+      if (tc.gablesTrim.value) {
+        const gablesTrimItem = findItem(priceBook, ACCESSORY_IDS.topTrimEavesGables);
+        if (gablesTrimItem && rowGablesShare > 0) {
+          lines.push(
+            buildLine(
+              'siding',
+              gablesTrimItem,
+              rowGablesShare,
+              gablesTrimItem.wastePct,
+              'up',
+              rules.laborRateMultiplier,
+              `siding-${row.id}-gablesTrim`
+            )
+          );
+        }
+      }
+
+      const rowRooflineShare = rowEavesShare + rowGablesShare;
       if (tc.stepFlashing.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.stepFlashing);
-        if (item2 && rowFasciaShare > 0) {
-          lines.push(buildLine('siding', item2, rowFasciaShare, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-stepFlashing`));
+        if (item2 && rowRooflineShare > 0) {
+          lines.push(buildLine('siding', item2, rowRooflineShare, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-stepFlashing`));
         }
       }
       if (tc.buttJointFlashing.value) {
@@ -294,14 +315,15 @@ export function computeCalculation(
   // ---------- Fascia ----------
   if (ws.fascia) {
     const spec = draft.quoteDetails.fascia;
+    const fasciaLengthLnft = draft.measurements.eavesLengthLnft + draft.measurements.gablesLengthLnft;
     const item = findItem(priceBook, spec.productId);
-    if (item && draft.measurements.fasciaLengthLnft > 0) {
-      lines.push(buildLine('fascia', item, draft.measurements.fasciaLengthLnft, item.wastePct, 'up', 1, 'fascia-material'));
+    if (item && fasciaLengthLnft > 0) {
+      lines.push(buildLine('fascia', item, fasciaLengthLnft, item.wastePct, 'up', 1, 'fascia-material'));
     }
     if (spec.includeRemoval) {
       const removal = findItem(priceBook, 'fascia-removal');
-      if (removal && draft.measurements.fasciaLengthLnft > 0) {
-        lines.push(buildLine('fascia', removal, draft.measurements.fasciaLengthLnft, 0, 'exact', 1, 'fascia-removal'));
+      if (removal && fasciaLengthLnft > 0) {
+        lines.push(buildLine('fascia', removal, fasciaLengthLnft, 0, 'exact', 1, 'fascia-removal'));
       }
     }
   }
