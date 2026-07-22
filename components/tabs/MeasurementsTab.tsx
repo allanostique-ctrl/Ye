@@ -250,62 +250,75 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
               + Add Section
             </button>
           </div>
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 190 }} />
+              {m.sections.map((s) => (
+                <col key={s.id} style={{ width: 190 }} />
+              ))}
+              <col style={{ width: 170 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th>Section Name</th>
-                {PER_SECTION_KEYS.map((f) => (
-                  <th key={f.key}>
-                    {f.label} ({f.unit})
+                <th>Field</th>
+                {m.sections.map((section) => (
+                  <th key={section.id}>
+                    <div className="flex items-center gap-1">
+                      <input
+                        className="field-input min-w-0 flex-1"
+                        value={section.name}
+                        onChange={(e) => updateSection(section.id, { name: e.target.value })}
+                      />
+                      <button
+                        className="btn btn-danger btn-sm shrink-0 px-2"
+                        title="Remove section"
+                        onClick={() => removeSection(section.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </th>
                 ))}
-                <th></th>
+                <th>Total</th>
               </tr>
             </thead>
             <tbody>
-              {m.sections.map((section) => (
-                <tr key={section.id}>
-                  <td>
-                    <input
-                      className="field-input"
-                      value={section.name}
-                      onChange={(e) => updateSection(section.id, { name: e.target.value })}
-                    />
-                  </td>
-                  {PER_SECTION_KEYS.map((f) => (
-                    <td key={f.key}>
-                      <input
-                        type="number"
-                        step="any"
-                        className="field-input"
-                        value={section[f.key]}
-                        onChange={(e) => updateSection(section.id, { [f.key]: parseFloat(e.target.value) || 0 } as any)}
-                      />
+              {PER_SECTION_KEYS.map((f) => {
+                const total = em[f.key];
+                const reference = m[f.key];
+                const exceeds = reference > 0 && total > reference + 0.01;
+                return (
+                  <tr key={f.key}>
+                    <td className="font-medium">
+                      {f.label} <span className="text-gray-400">({f.unit})</span>
                     </td>
-                  ))}
-                  <td>
-                    <button className="btn btn-danger btn-sm" onClick={() => removeSection(section.id)}>
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    {m.sections.map((section) => (
+                      <td key={section.id}>
+                        <input
+                          type="number"
+                          step="any"
+                          className="field-input"
+                          value={section[f.key]}
+                          onChange={(e) => updateSection(section.id, { [f.key]: parseFloat(e.target.value) || 0 } as any)}
+                        />
+                      </td>
+                    ))}
+                    <td className={`font-bold ${exceeds ? 'text-amber-600' : ''}`}>
+                      {fmt(total)}
+                      {exceeds && (
+                        <div className="text-xs font-normal text-amber-600">
+                          ⚠ exceeds HOVER total ({fmt(reference)})
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-            <tfoot>
-              <tr>
-                <td>Section Totals</td>
-                <td>{fmt(em.facadeAreaSqft)}</td>
-                <td>{fmt(em.openingsPerimeterLnft)}</td>
-                <td>{fmt(em.outsideCornerLengthLnft)}</td>
-                <td>{fmt(em.insideCornerLengthLnft)}</td>
-                <td>{fmt(em.starterLengthLnft)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
           </table>
           <p className="mt-2 text-xs text-gray-500">
-            Reference facade area is {fmt(m.facadeAreaSqft)} sqft — section totals above are what actually feed the
-            calculator.
+            Warnings are informational only — every value here stays fully editable even if section totals run over
+            the HOVER reference.
           </p>
         </div>
       )}

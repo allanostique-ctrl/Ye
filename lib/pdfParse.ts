@@ -1,17 +1,14 @@
 import { MeasurementFieldKey } from './types';
 
+// ---------- Generic fallback matching (for report layouts that don't match
+// the specific HOVER template handled below) ----------
+
 interface FieldPattern {
   key: MeasurementFieldKey;
-  // Ordered by specificity — first alias that matches a line wins.
   aliases: RegExp[];
-  // Tried only if none of the aliases matched anywhere in the document —
-  // a bare keyword, paired with "the line also contains a number."
   loose: RegExp;
 }
 
-// HOVER "Complete Measurements" PDF wording varies by report version, so each field
-// matches against several plausible label spellings, then falls back to a bare
-// keyword if nothing more specific is found.
 const FIELD_PATTERNS: FieldPattern[] = [
   {
     key: 'facadeAreaSqft',
@@ -57,12 +54,12 @@ const FIELD_PATTERNS: FieldPattern[] = [
   },
   {
     key: 'starterLengthLnft',
-    aliases: [/starter\s+(?:strip\s+)?length/i, /total\s+starter/i, /starter\s+course/i],
+    aliases: [/starter\s+(?:strip\s+)?length/i, /total\s+starter/i, /starter\s+course/i, /level\s+starter/i],
     loose: /starter/i,
   },
   {
     key: 'fasciaLengthLnft',
-    aliases: [/fascia\s+length/i, /total\s+fascia/i, /fascia\s+board/i],
+    aliases: [/fascia\s+length/i, /total\s+fascia/i, /fascia\s+board/i, /eaves\s+fascia/i],
     loose: /fascia/i,
   },
   {
@@ -77,27 +74,41 @@ const FIELD_PATTERNS: FieldPattern[] = [
   },
 ];
 
-const NUMBER_TOKEN = /(-?[\d,]+(?:\.\d+)?)\s*(?:sq\s*\.?\s*ft\.?|sqft|sq\.?|sf|lin\.?\s*ft\.?|lnft|ln\.?\s*ft\.?|lf|ft\.?|'|")?/i;
-
-function firstNumberIn(line: string, fromIndex = 0): number | null {
-  const m = line.slice(fromIndex).match(NUMBER_TOKEN);
+function firstPlainNumber(text: string, fromIndex = 0): number | null {
+  const m = text.slice(fromIndex).match(/(-?[\d,]+(?:\.\d+)?)/);
   if (!m) return null;
   const n = parseFloat(m[1].replace(/,/g, ''));
   return Number.isFinite(n) ? n : null;
 }
 
-export function extractMeasurementsFromText(fullText: string): Partial<Record<MeasurementFieldKey, number>> {
-  const result: Partial<Record<MeasurementFieldKey, number>> = {};
+/**
+ * HOVER writes lengths as feet'-inches" (e.g. 264' 4") or bare whole feet (59').
+ * A trailing bare number is only treated as inches when it's immediately
+ * followed by a closing inch-mark ("); an unquoted trailing number belongs to
+ * a different table column (a count, a second Siding/Other value, etc.) and
+ * is deliberately ignored by stopping the match right after the foot-mark.
+ */
+function firstLength(text: string, fromIndex = 0): number | null {
+  const rest = text.slice(fromIndex);
+  const m = rest.match(/(-?\d+)'(?:\s*(\d+)")?/);
+  if (m) {
+    const feet = parseInt(m[1], 10);
+    const inches = m[2] ? parseInt(m[2], 10) : 0;
+    return Math.round((feet + inches / 12) * 100) / 100;
+  }
+  return firstPlainNumber(rest);
+}
+
+function applyGenericFallback(result: Partial<Record<MeasurementFieldKey, number>>, fullText: string): void {
   const lines = fullText.split('\n').map((l) => l.trim()).filter(Boolean);
 
   for (const field of FIELD_PATTERNS) {
-    // Pass 1: specific aliases, matched line by line so the number we grab
-    // is the one actually next to this label, not some unrelated one later.
+    if (result[field.key] !== undefined) continue;
     outer: for (const line of lines) {
       for (const alias of field.aliases) {
         const match = line.match(alias);
         if (match && match.index !== undefined) {
-          const value = firstNumberIn(line, match.index + match[0].length) ?? firstNumberIn(line);
+          const value = firstLength(line, match.index + match[0].length) ?? firstPlainNumber(line);
           if (value !== null) {
             result[field.key] = value;
             break outer;
@@ -109,12 +120,10 @@ export function extractMeasurementsFromText(fullText: string): Partial<Record<Me
 
   for (const field of FIELD_PATTERNS) {
     if (result[field.key] !== undefined) continue;
-    // Pass 2: nothing specific matched anywhere — fall back to a bare
-    // keyword on a line that also contains a number.
     for (const line of lines) {
       if (field.loose.test(line)) {
         const idx = line.search(field.loose);
-        const value = firstNumberIn(line, idx) ?? firstNumberIn(line);
+        const value = firstLength(line, idx) ?? firstPlainNumber(line);
         if (value !== null) {
           result[field.key] = value;
           break;
@@ -122,9 +131,116 @@ export function extractMeasurementsFromText(fullText: string): Partial<Record<Me
       }
     }
   }
+}
+
+// ---------- HOVER "Complete Measurements" template-specific extraction ----------
+
+interface Section {
+  title: string;
+  lines: string[];
+}
+
+/** A standalone all-caps line with no digits reads as a section/page title in this report. */
+const SECTION_HEADER_RE = /^[A-Z][A-Z /&*'-]{1,40}$/;
+
+function splitIntoSections(fullText: string): Section[] {
+  const lines = fullText.split('\n').map((l) => l.trim()).filter(Boolean);
+  const sections: Section[] = [];
+  let current: Section = { title: '', lines: [] };
+
+  for (const line of lines) {
+    if (SECTION_HEADER_RE.test(line) && !/\d/.test(line) && line === line.toUpperCase()) {
+      sections.push(current);
+      current = { title: line, lines: [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  sections.push(current);
+  return sections;
+}
+
+function linesOfSection(sections: Section[], titleMatch: RegExp): string[] {
+  return sections.filter((s) => titleMatch.test(s.title)).flatMap((s) => s.lines);
+}
+
+function extractHoverTemplate(fullText: string): Partial<Record<MeasurementFieldKey, number>> {
+  const result: Partial<Record<MeasurementFieldKey, number>> = {};
+  const sections = splitIntoSections(fullText);
+  const summaryLines = linesOfSection(sections, /^summary$/i);
+  const soffitLines = linesOfSection(sections, /^soffit$/i);
+  const gutterLines = linesOfSection(sections, /^gutter system$/i);
+
+  function matchInLines(lines: string[], pattern: RegExp, extractor: (line: string, afterIndex: number) => number | null) {
+    for (const line of lines) {
+      const m = line.match(pattern);
+      if (m && m.index !== undefined) {
+        const value = extractor(line, m.index + m[0].length);
+        if (value !== null) return value;
+      }
+    }
+    return null;
+  }
+
+  // "Facades  2002 ft²  89 ft²" — the Areas table on the Summary page.
+  const facade = matchInLines(summaryLines, /^facades\b/i, firstPlainNumber);
+  if (facade !== null) result.facadeAreaSqft = facade;
+
+  // "Total Perimeter  325' 8"  15' 2"" — the Openings table on the Summary page.
+  const perimeter = matchInLines(summaryLines, /total\s+perimeter/i, firstLength);
+  if (perimeter !== null) result.openingsPerimeterLnft = perimeter;
+
+  // "Outside Length  59'  11' 6"" / "Inside Length  50' 2"  -" — the Corners table.
+  const outside = matchInLines(summaryLines, /outside\s+length/i, firstLength);
+  if (outside !== null) result.outsideCornerLengthLnft = outside;
+
+  const inside = matchInLines(summaryLines, /inside\s+length/i, firstLength);
+  if (inside !== null) result.insideCornerLengthLnft = inside;
+
+  // "Level Starter  264' 4"  9' 6"" — the Trim table.
+  const starter = matchInLines(summaryLines, /level\s+starter/i, firstLength);
+  if (starter !== null) result.starterLengthLnft = starter;
+
+  // Fascia runs along both eaves and rakes — sum whichever of the two are present.
+  const eavesFascia = matchInLines(summaryLines, /eaves\s+fascia/i, firstLength);
+  const rakesFascia = matchInLines(summaryLines, /rakes\s+fascia/i, firstLength);
+  if (eavesFascia !== null || rakesFascia !== null) {
+    result.fasciaLengthLnft = Math.round(((eavesFascia ?? 0) + (rakesFascia ?? 0)) * 100) / 100;
+  }
+
+  // Dedicated Soffit Summary page: "Totals  302' 6"  796 ft²" — take the area (last), not the length.
+  for (const line of soffitLines) {
+    if (/^totals?\b/i.test(line)) {
+      const m = line.match(/([\d,]+)\s*ft/i);
+      if (m) {
+        result.soffitAreaSqft = parseFloat(m[1].replace(/,/g, ''));
+        break;
+      }
+    }
+  }
+
+  // Dedicated Gutter System page: "Total  128'  5" (the trailing 5 is a Sections count, not inches).
+  for (const line of gutterLines) {
+    if (/^total\b/i.test(line)) {
+      const m = line.match(/^total\b/i);
+      const value = m ? firstLength(line, m.index! + m[0].length) : null;
+      if (value !== null) {
+        result.gutterLengthLnft = value;
+        break;
+      }
+    }
+  }
 
   return result;
 }
+
+export function extractMeasurementsFromText(fullText: string): Partial<Record<MeasurementFieldKey, number>> {
+  const result = extractHoverTemplate(fullText);
+  applyGenericFallback(result, fullText);
+  return result;
+}
+
+// ---------- PDF text extraction ----------
 
 interface PdfTextItem {
   str: string;
