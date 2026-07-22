@@ -60,6 +60,41 @@ function buildLine(
   };
 }
 
+interface AccessoryAccumEntry {
+  item: PriceBookItem;
+  qty: number;
+  wastePct: number;
+  rounding: Rounding;
+  laborRateMultiplier: number;
+}
+
+/**
+ * Trims, starters, and fasteners are brand-driven, not style-driven — two Siding Type
+ * rows of the same brand (e.g. Vinyl Lap + Vinyl Board & Batten) end up pointing at the
+ * exact same J-channel/starter/nails product. Rather than pricing that product once per
+ * row, every accessory quantity funnels through this accumulator keyed by the product
+ * plus its rate inputs, so it's bought — and priced — once for the whole job. Two rows
+ * only fail to combine if they'd actually need different waste/rounding/labor rates
+ * (e.g. a manually-matched product across two different brands), which is the one case
+ * where combining could quietly change the numbers.
+ */
+function accumulateAccessory(
+  acc: Map<string, AccessoryAccumEntry>,
+  item: PriceBookItem,
+  qty: number,
+  wastePct: number,
+  rounding: Rounding,
+  laborRateMultiplier: number
+): void {
+  const key = `${item.id}|${wastePct}|${rounding}|${laborRateMultiplier}`;
+  const existing = acc.get(key);
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    acc.set(key, { item, qty, wastePct, rounding, laborRateMultiplier });
+  }
+}
+
 function linesFromPicks(section: WorkSectionKey, picks: LineItemPick[], priceBook: PriceBook): ComputedLineItem[] {
   const lines: ComputedLineItem[] = [];
   for (const pick of picks) {
@@ -100,6 +135,7 @@ export function computeCalculation(
   // ---------- Siding ----------
   if (ws.siding) {
     const totalSidingArea = draft.sidingTypeRows.reduce((sum, r) => sum + effectiveRowArea(r, draft.measurements), 0);
+    const accessoryAcc = new Map<string, AccessoryAccumEntry>();
 
     for (const row of draft.sidingTypeRows) {
       const rowArea = effectiveRowArea(row, draft.measurements);
@@ -112,81 +148,40 @@ export function computeCalculation(
         );
       }
 
-      // Each row carries its OWN accessory/trim package — a mixed-brand job (e.g. Vinyl +
-      // Hardie) prices Vinyl J-channel for the Vinyl row and Hardie trim board for the
-      // Hardie row independently, using that row's own share of the job's measurements.
+      // Trims, starters, and fasteners are brand-driven, not style-driven — two rows of
+      // the same brand (e.g. Vinyl Lap + Vinyl Board & Batten) point at the exact same
+      // J-channel/starter/nails product, so their quantities are combined into ONE line
+      // via accessoryAcc below instead of pricing that product once per row.
       const tc = row.trimConfig;
       const rm = measurementsForRow(row, draft.measurements, draft.sidingTypeRows);
       const roofLineShare = totalSidingArea > 0 ? rowArea / totalSidingArea : 0;
 
       const openingsItem = findItem(priceBook, tc.openingsTrimProductId.value);
       if (openingsItem && rm.openingsPerimeterLnft > 0) {
-        lines.push(
-          buildLine(
-            'siding',
-            openingsItem,
-            rm.openingsPerimeterLnft,
-            rules.trimWastePct,
-            rules.purchaseRounding,
-            rules.laborRateMultiplier,
-            `siding-${row.id}-openings`
-          )
-        );
+        accumulateAccessory(accessoryAcc, openingsItem, rm.openingsPerimeterLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier);
       }
 
       const outsideItem = findItem(priceBook, tc.outsideCornerProductId.value);
       if (outsideItem && rm.outsideCornerLengthLnft > 0) {
         // pieces/ft is expressed as extra coverage density: qty of "linear feet of piece" needed = length * piecesPerFt
         const adjustedQty = rm.outsideCornerLengthLnft * rules.outsideCornerPiecesPerFt;
-        lines.push(
-          buildLine(
-            'siding',
-            outsideItem,
-            adjustedQty,
-            rules.trimWastePct,
-            rules.purchaseRounding,
-            rules.laborRateMultiplier,
-            `siding-${row.id}-outsideCorner`
-          )
-        );
+        accumulateAccessory(accessoryAcc, outsideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier);
       }
 
       const insideItem = findItem(priceBook, tc.insideCornerProductId.value);
       if (insideItem && rm.insideCornerLengthLnft > 0) {
         const adjustedQty = rm.insideCornerLengthLnft * rules.insideCornerPiecesPerFt;
-        lines.push(
-          buildLine(
-            'siding',
-            insideItem,
-            adjustedQty,
-            rules.trimWastePct,
-            rules.purchaseRounding,
-            rules.laborRateMultiplier,
-            `siding-${row.id}-insideCorner`
-          )
-        );
+        accumulateAccessory(accessoryAcc, insideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier);
       }
 
       const starterItem = findItem(priceBook, tc.starterProductId.value);
       if (starterItem && rm.starterLengthLnft > 0) {
-        lines.push(
-          buildLine(
-            'siding',
-            starterItem,
-            rm.starterLengthLnft,
-            rules.trimWastePct,
-            rules.purchaseRounding,
-            rules.laborRateMultiplier,
-            `siding-${row.id}-starter`
-          )
-        );
+        accumulateAccessory(accessoryAcc, starterItem, rm.starterLengthLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier);
       }
 
       const fastenerItem = findItem(priceBook, tc.fastenerProductId.value);
       if (fastenerItem && rowArea > 0) {
-        lines.push(
-          buildLine('siding', fastenerItem, rowArea, fastenerItem.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-fastener`)
-        );
+        accumulateAccessory(accessoryAcc, fastenerItem, rowArea, fastenerItem.wastePct, 'up', rules.laborRateMultiplier);
       }
 
       // Top-of-siding trim runs along the eaves and/or gable rakes, each allocated by this
@@ -199,34 +194,14 @@ export function computeCalculation(
       if (tc.eavesTrim.value) {
         const eavesTrimItem = findItem(priceBook, ACCESSORY_IDS.topTrimEavesOnly);
         if (eavesTrimItem && rowEavesShare > 0) {
-          lines.push(
-            buildLine(
-              'siding',
-              eavesTrimItem,
-              rowEavesShare,
-              eavesTrimItem.wastePct,
-              'up',
-              rules.laborRateMultiplier,
-              `siding-${row.id}-eavesTrim`
-            )
-          );
+          accumulateAccessory(accessoryAcc, eavesTrimItem, rowEavesShare, eavesTrimItem.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
 
       if (tc.gablesTrim.value) {
         const gablesTrimItem = findItem(priceBook, ACCESSORY_IDS.topTrimEavesGables);
         if (gablesTrimItem && rowGablesShare > 0) {
-          lines.push(
-            buildLine(
-              'siding',
-              gablesTrimItem,
-              rowGablesShare,
-              gablesTrimItem.wastePct,
-              'up',
-              rules.laborRateMultiplier,
-              `siding-${row.id}-gablesTrim`
-            )
-          );
+          accumulateAccessory(accessoryAcc, gablesTrimItem, rowGablesShare, gablesTrimItem.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
 
@@ -234,27 +209,42 @@ export function computeCalculation(
       if (tc.stepFlashing.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.stepFlashing);
         if (item2 && rowRooflineShare > 0) {
-          lines.push(buildLine('siding', item2, rowRooflineShare, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-stepFlashing`));
+          accumulateAccessory(accessoryAcc, item2, rowRooflineShare, item2.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
       if (tc.buttJointFlashing.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.buttJointFlashing);
         if (item2 && rowArea > 0) {
-          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-buttJoint`));
+          accumulateAccessory(accessoryAcc, item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
       if (tc.touchUpPaint.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.touchUpPaint);
         if (item2 && rowArea > 0) {
-          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-touchUpPaint`));
+          accumulateAccessory(accessoryAcc, item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
       if (tc.caulkSealant.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.caulkSealant);
         if (item2 && rowArea > 0) {
-          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-caulk`));
+          accumulateAccessory(accessoryAcc, item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier);
         }
       }
+    }
+
+    for (const entry of accessoryAcc.values()) {
+      if (entry.qty <= 0) continue;
+      lines.push(
+        buildLine(
+          'siding',
+          entry.item,
+          entry.qty,
+          entry.wastePct,
+          entry.rounding,
+          entry.laborRateMultiplier,
+          `siding-accessory-${entry.item.id}`
+        )
+      );
     }
 
     // Brand labor minimum: top up siding-category labor for each brand bucket represented on the job.
