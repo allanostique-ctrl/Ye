@@ -2,6 +2,7 @@
 
 import { BrandCalcRules, CalcRulesConfig } from '@/lib/types';
 import { CALC_RULE_BRAND_LABELS, CalcRuleBrandKey } from '@/lib/brands';
+import { NumericInput } from '@/components/NumericInput';
 
 const BRAND_KEYS: CalcRuleBrandKey[] = ['vinyl', 'jamesHardie', 'lpSmartSide', 'other'];
 
@@ -20,12 +21,7 @@ function BrandCard({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className="field-label">Siding Waste %</label>
-          <input
-            type="number"
-            className="field-input"
-            value={rules.sidingWastePct}
-            onChange={(e) => onChange({ sidingWastePct: parseFloat(e.target.value) || 0 })}
-          />
+          <NumericInput className="field-input" value={rules.sidingWastePct} onChange={(v) => onChange({ sidingWastePct: v })} />
         </div>
         <div>
           <label className="field-label">Purchase Rounding</label>
@@ -41,60 +37,46 @@ function BrandCard({
         </div>
         <div>
           <label className="field-label">Outside Corner Pieces/Ft</label>
-          <input
-            type="number"
-            step="any"
+          <NumericInput
             className="field-input"
             value={rules.outsideCornerPiecesPerFt}
-            onChange={(e) => onChange({ outsideCornerPiecesPerFt: parseFloat(e.target.value) || 0 })}
+            onChange={(v) => onChange({ outsideCornerPiecesPerFt: v })}
           />
         </div>
         <div>
           <label className="field-label">Inside Corner Pieces/Ft</label>
-          <input
-            type="number"
-            step="any"
+          <NumericInput
             className="field-input"
             value={rules.insideCornerPiecesPerFt}
-            onChange={(e) => onChange({ insideCornerPiecesPerFt: parseFloat(e.target.value) || 0 })}
+            onChange={(v) => onChange({ insideCornerPiecesPerFt: v })}
           />
         </div>
         <div>
           <label className="field-label">Trim Waste %</label>
-          <input
-            type="number"
-            className="field-input"
-            value={rules.trimWastePct}
-            onChange={(e) => onChange({ trimWastePct: parseFloat(e.target.value) || 0 })}
-          />
+          <NumericInput className="field-input" value={rules.trimWastePct} onChange={(v) => onChange({ trimWastePct: v })} />
         </div>
         <div>
           <label className="field-label">Starter Coverage (lnft/piece)</label>
-          <input
-            type="number"
-            step="any"
+          <NumericInput
             className="field-input"
             value={rules.starterCoverageLnftPerPiece}
-            onChange={(e) => onChange({ starterCoverageLnftPerPiece: parseFloat(e.target.value) || 0 })}
+            onChange={(v) => onChange({ starterCoverageLnftPerPiece: v })}
           />
         </div>
         <div>
           <label className="field-label">Labor Minimum ($)</label>
-          <input
-            type="number"
+          <NumericInput
             className="field-input"
             value={rules.laborMinimumDollars}
-            onChange={(e) => onChange({ laborMinimumDollars: parseFloat(e.target.value) || 0 })}
+            onChange={(v) => onChange({ laborMinimumDollars: v })}
           />
         </div>
         <div>
           <label className="field-label">Labor Rate Multiplier</label>
-          <input
-            type="number"
-            step="any"
+          <NumericInput
             className="field-input"
             value={rules.laborRateMultiplier}
-            onChange={(e) => onChange({ laborRateMultiplier: parseFloat(e.target.value) || 0 })}
+            onChange={(v) => onChange({ laborRateMultiplier: v })}
           />
         </div>
       </div>

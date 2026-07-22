@@ -11,6 +11,7 @@ import { BRANDS, STYLES } from '@/lib/brands';
 import { syncSidingRowsFromSelections } from '@/lib/calc/sidingRows';
 import { effectiveMeasurements } from '@/lib/calc/measurements';
 import { NextButton } from '@/components/NextButton';
+import { NumericInput } from '@/components/NumericInput';
 
 interface Props {
   draft: CalculatorDraft;
@@ -309,12 +310,11 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
               </select>
               <div className="flex items-center gap-2">
                 <label className="field-label mb-0">Downspouts</label>
-                <input
-                  type="number"
+                <NumericInput
                   className="field-input"
                   style={{ width: 90 }}
                   value={qd.gutters.downspoutQty}
-                  onChange={(e) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, gutters: { ...d.quoteDetails.gutters, downspoutQty: parseFloat(e.target.value) || 0 } } }))}
+                  onChange={(v) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, gutters: { ...d.quoteDetails.gutters, downspoutQty: v } } }))}
                 />
               </div>
               <label className="pill" data-active={qd.gutters.includeGuards ? 'true' : 'false'}>

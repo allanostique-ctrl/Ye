@@ -3,6 +3,7 @@
 import { Fragment } from 'react';
 import { PriceBookItem, Category, Unit } from '@/lib/types';
 import { BRANDS, STYLES, Brand, Style, brandSupportsPrimed } from '@/lib/brands';
+import { NumericInput } from '@/components/NumericInput';
 
 const UNITS: Unit[] = ['sqft', 'lnft', 'each'];
 
@@ -120,40 +121,16 @@ function Row({
         </select>
       </td>
       <td>
-        <input
-          type="number"
-          step="any"
-          className="field-input"
-          value={item.coveragePerUnit}
-          onChange={(e) => onChange({ coveragePerUnit: parseFloat(e.target.value) || 0 })}
-        />
+        <NumericInput className="field-input" value={item.coveragePerUnit} onChange={(v) => onChange({ coveragePerUnit: v })} />
       </td>
       <td>
-        <input
-          type="number"
-          step="any"
-          className="field-input"
-          value={item.wastePct}
-          onChange={(e) => onChange({ wastePct: parseFloat(e.target.value) || 0 })}
-        />
+        <NumericInput className="field-input" value={item.wastePct} onChange={(v) => onChange({ wastePct: v })} />
       </td>
       <td>
-        <input
-          type="number"
-          step="any"
-          className="field-input"
-          value={item.materialPrice}
-          onChange={(e) => onChange({ materialPrice: parseFloat(e.target.value) || 0 })}
-        />
+        <NumericInput className="field-input" value={item.materialPrice} onChange={(v) => onChange({ materialPrice: v })} />
       </td>
       <td>
-        <input
-          type="number"
-          step="any"
-          className="field-input"
-          value={item.laborRate}
-          onChange={(e) => onChange({ laborRate: parseFloat(e.target.value) || 0 })}
-        />
+        <NumericInput className="field-input" value={item.laborRate} onChange={(v) => onChange({ laborRate: v })} />
       </td>
       <td className="text-center">
         <input type="checkbox" checked={item.active} onChange={(e) => onChange({ active: e.target.checked })} />

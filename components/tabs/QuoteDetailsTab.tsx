@@ -18,6 +18,7 @@ import { computeCalculation } from '@/lib/calc/engine';
 import { LineItemPickList } from '@/components/LineItemPickList';
 import { MaterialLaborList } from '@/components/MaterialLaborList';
 import { NextButton } from '@/components/NextButton';
+import { NumericInput } from '@/components/NumericInput';
 
 interface Props {
   draft: CalculatorDraft;
@@ -336,12 +337,10 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
                         <div className="text-xs text-gray-400">from sections</div>
                       </div>
                     ) : (
-                      <input
-                        type="number"
-                        step="any"
+                      <NumericInput
                         className="field-input text-right"
                         value={row.areaSqft}
-                        onChange={(e) => updateRow(row.id, { areaSqft: parseFloat(e.target.value) || 0 })}
+                        onChange={(v) => updateRow(row.id, { areaSqft: v })}
                       />
                     )}
                   </td>
@@ -538,28 +537,26 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
           <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
               <label className="field-label">OSB / Insulation Board (sqft)</label>
-              <input
-                type="number"
+              <NumericInput
                 className="field-input"
                 value={qd.oneTimeCharges.osbInsulationBoardSqft}
-                onChange={(e) =>
+                onChange={(v) =>
                   updateDraft((d) => ({
                     ...d,
-                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, osbInsulationBoardSqft: parseFloat(e.target.value) || 0 } },
+                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, osbInsulationBoardSqft: v } },
                   }))
                 }
               />
             </div>
             <div>
               <label className="field-label">Detach &amp; Reset Lights (qty)</label>
-              <input
-                type="number"
+              <NumericInput
                 className="field-input"
                 value={qd.oneTimeCharges.detachResetLightQty}
-                onChange={(e) =>
+                onChange={(v) =>
                   updateDraft((d) => ({
                     ...d,
-                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, detachResetLightQty: parseFloat(e.target.value) || 0 } },
+                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, detachResetLightQty: v } },
                   }))
                 }
               />

@@ -13,6 +13,7 @@ import { BRANDS, STYLES } from '@/lib/brands';
 import { effectiveMeasurements, effectiveRowArea } from '@/lib/calc/measurements';
 import { syncSidingRowsFromSelections, assignSectionToSidingKey } from '@/lib/calc/sidingRows';
 import { NextButton } from '@/components/NextButton';
+import { NumericInput } from '@/components/NumericInput';
 
 interface Props {
   draft: CalculatorDraft;
@@ -242,13 +243,11 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                   {m.overridden[f.key] && <span className="badge ml-2 bg-amber-100 text-amber-700">edited</span>}
                 </td>
                 <td>
-                  <input
-                    type="number"
-                    step="any"
+                  <NumericInput
                     className="field-input text-right"
                     data-overridden={m.overridden[f.key] ? 'true' : 'false'}
                     value={m[f.key]}
-                    onChange={(e) => setField(f.key, parseFloat(e.target.value) || 0)}
+                    onChange={(v) => setField(f.key, v)}
                   />
                 </td>
                 <td className="text-gray-400">{f.unit}</td>
@@ -352,12 +351,10 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                     </td>
                     {m.sections.map((section) => (
                       <td key={section.id}>
-                        <input
-                          type="number"
-                          step="any"
+                        <NumericInput
                           className="field-input"
                           value={section[f.key]}
-                          onChange={(e) => updateSection(section.id, { [f.key]: parseFloat(e.target.value) || 0 } as any)}
+                          onChange={(v) => updateSection(section.id, { [f.key]: v } as any)}
                         />
                       </td>
                     ))}

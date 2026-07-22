@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Category, LineItemPick, PriceBook } from '@/lib/types';
+import { NumericInput } from '@/components/NumericInput';
 
 export function LineItemPickList({
   category,
@@ -60,14 +61,7 @@ export function LineItemPickList({
               <tr key={p.id}>
                 <td>{itemName(p.productId)}</td>
                 <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="field-input"
-                    style={{ width: 100 }}
-                    value={p.qty}
-                    onChange={(e) => updateQty(p.id, parseFloat(e.target.value) || 0)}
-                  />
+                  <NumericInput className="field-input" style={{ width: 100 }} value={p.qty} onChange={(qty) => updateQty(p.id, qty)} />
                 </td>
                 <td>{itemUnit(p.productId)}</td>
                 <td>
