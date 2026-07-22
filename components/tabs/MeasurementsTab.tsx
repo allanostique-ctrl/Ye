@@ -10,7 +10,7 @@ import {
   sidingKey as buildSidingKey,
 } from '@/lib/types';
 import { BRANDS, STYLES } from '@/lib/brands';
-import { effectiveMeasurements, effectiveRowArea } from '@/lib/calc/measurements';
+import { effectiveMeasurements, effectiveRowArea, primarySectionIds } from '@/lib/calc/measurements';
 import { syncSidingRowsFromSelections, assignSectionToSidingKey } from '@/lib/calc/sidingRows';
 import { NextButton } from '@/components/NextButton';
 import { NumericInput } from '@/components/NumericInput';
@@ -46,6 +46,7 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
   const fileInputRef = useRef<HTMLInputElement>(null);
   const m = draft.measurements;
   const em = effectiveMeasurements(m);
+  const dedupPrimaryIds = primarySectionIds(m.sections);
 
   function setField(key: MeasurementFieldKey, value: number) {
     updateDraft((d) => ({
@@ -273,7 +274,9 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
           total; this table lets you split facade area, openings, corners, and starter length across named sections,
           and the section totals — not the reference row — feed the rest of the job. Pick a siding material per
           section below and it auto-checks that combo in Checklist and links the section straight to its Quote
-          Details row, area included.
+          Details row, area included. When two sections share the same material, only the first one needs openings,
+          corners, and starter length filled in — they both feed the same Quote Details row either way, so only
+          facade area needs to be split between them.
         </p>
       </div>
 
@@ -344,20 +347,40 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                 const total = em[f.key];
                 const reference = m[f.key];
                 const exceeds = reference > 0 && total > reference + 0.01;
+                const isDedupedField = f.key !== 'facadeAreaSqft';
                 return (
                   <tr key={f.key}>
                     <td className="font-medium">
                       {f.label} <span className="text-gray-400">({f.unit})</span>
                     </td>
-                    {m.sections.map((section) => (
-                      <td key={section.id}>
-                        <NumericInput
-                          className="field-input"
-                          value={section[f.key]}
-                          onChange={(v) => updateSection(section.id, { [f.key]: v } as any)}
-                        />
-                      </td>
-                    ))}
+                    {m.sections.map((section) => {
+                      const isDuplicateMaterial = isDedupedField && !dedupPrimaryIds.has(section.id);
+                      if (isDuplicateMaterial) {
+                        const primaryName = m.sections.find(
+                          (s) => s.sidingKey === section.sidingKey && dedupPrimaryIds.has(s.id)
+                        )?.name;
+                        return (
+                          <td key={section.id}>
+                            <div
+                              className="field-input flex items-center text-xs italic text-gray-400"
+                              style={{ background: '#f3f4f6' }}
+                              title="Same siding material as another section — only needs to be entered once."
+                            >
+                              Not needed{primaryName ? ` (see ${primaryName})` : ''}
+                            </div>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={section.id}>
+                          <NumericInput
+                            className="field-input"
+                            value={section[f.key]}
+                            onChange={(v) => updateSection(section.id, { [f.key]: v } as any)}
+                          />
+                        </td>
+                      );
+                    })}
                     <td className={`font-bold ${exceeds ? 'text-amber-600' : ''}`}>
                       {fmt(total)}
                       {exceeds && (
