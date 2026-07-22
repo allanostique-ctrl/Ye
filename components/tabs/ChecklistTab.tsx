@@ -41,10 +41,18 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
   function toggleSidingSelection(brand: (typeof BRANDS)[number], style: (typeof STYLES)[number]) {
     updateDraft((d) => {
       const key = sidingKey(brand, style);
-      const nextSelections = { ...d.quoteDetails.sidingSelections, [key]: !d.quoteDetails.sidingSelections[key] };
+      const nowChecked = !d.quoteDetails.sidingSelections[key];
+      const nextSelections = { ...d.quoteDetails.sidingSelections, [key]: nowChecked };
       const nextRows = syncSidingRowsFromSelections(d.sidingTypeRows, nextSelections, priceBook);
+      // Unchecking removes the row that backed this combo — clear it off any
+      // measurement section that still pointed to it so the dropdown there
+      // doesn't keep showing a link that no longer exists.
+      const nextSections = nowChecked
+        ? d.measurements.sections
+        : d.measurements.sections.map((s) => (s.sidingKey === key ? { ...s, sidingKey: null } : s));
       return {
         ...d,
+        measurements: { ...d.measurements, sections: nextSections },
         quoteDetails: { ...d.quoteDetails, sidingSelections: nextSelections },
         sidingTypeRows: nextRows,
       };

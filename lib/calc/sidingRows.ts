@@ -1,5 +1,5 @@
 import { Brand, Style } from '../brands';
-import { PriceBook, SidingMaterialSelections, SidingTypeRow, sidingKey } from '../types';
+import { ID, PriceBook, SidingMaterialSelections, SidingTypeRow, sidingKey } from '../types';
 import { trimConfigForBrand } from './trimSwitch';
 
 export const MAX_SIDING_ROWS = 4;
@@ -41,4 +41,21 @@ export function syncSidingRowsFromSelections(
   }
 
   return next;
+}
+
+/**
+ * Makes a measurement section feed exactly one Siding Type row: the one matching
+ * `newKey` (brand|style), or none at all when `newKey` is null. Used both by the
+ * Measurements tab's per-section siding dropdown and Quote Details' manual
+ * section-link pills, so a section is never double-counted across two rows.
+ */
+export function assignSectionToSidingKey(rows: SidingTypeRow[], sectionId: ID, newKey: string | null): SidingTypeRow[] {
+  return rows.map((row) => {
+    const key = sidingKey(row.brand, row.style);
+    const shouldHave = newKey !== null && key === newKey;
+    const has = row.sectionIds.includes(sectionId);
+    if (shouldHave && !has) return { ...row, sectionIds: [...row.sectionIds, sectionId] };
+    if (!shouldHave && has) return { ...row, sectionIds: row.sectionIds.filter((id) => id !== sectionId) };
+    return row;
+  });
 }

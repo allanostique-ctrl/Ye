@@ -8,6 +8,7 @@ import {
   SidingTypeRow,
   TopOfSidingMode,
   WORK_SECTIONS,
+  sidingKey,
 } from '@/lib/types';
 import { BRANDS, Brand, STYLES, Style, brandSupportsPrimed } from '@/lib/brands';
 import { MAX_SIDING_ROWS } from '@/lib/calc/sidingRows';
@@ -189,20 +190,30 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
   }
 
   function toggleRowSection(rowId: string, sectionId: string) {
-    updateDraft((d) => ({
-      ...d,
-      sidingTypeRows: d.sidingTypeRows.map((r) => {
-        if (r.id === rowId) {
-          const has = r.sectionIds.includes(sectionId);
-          return { ...r, sectionIds: has ? r.sectionIds.filter((id) => id !== sectionId) : [...r.sectionIds, sectionId] };
-        }
-        // A section can only feed one row at a time — unlink it from wherever else it was.
-        if (r.sectionIds.includes(sectionId)) {
-          return { ...r, sectionIds: r.sectionIds.filter((id) => id !== sectionId) };
-        }
-        return r;
-      }),
-    }));
+    updateDraft((d) => {
+      const targetRow = d.sidingTypeRows.find((r) => r.id === rowId);
+      const linking = targetRow ? !targetRow.sectionIds.includes(sectionId) : false;
+      const newKey = linking && targetRow ? sidingKey(targetRow.brand, targetRow.style) : null;
+      return {
+        ...d,
+        // Keep the Measurements tab's per-section dropdown in sync with whatever
+        // gets linked here, so the two screens never disagree about the pairing.
+        measurements: {
+          ...d.measurements,
+          sections: d.measurements.sections.map((s) => (s.id === sectionId ? { ...s, sidingKey: newKey } : s)),
+        },
+        sidingTypeRows: d.sidingTypeRows.map((r) => {
+          if (r.id === rowId) {
+            return { ...r, sectionIds: linking ? [...r.sectionIds, sectionId] : r.sectionIds.filter((id) => id !== sectionId) };
+          }
+          // A section can only feed one row at a time — unlink it from wherever else it was.
+          if (r.sectionIds.includes(sectionId)) {
+            return { ...r, sectionIds: r.sectionIds.filter((id) => id !== sectionId) };
+          }
+          return r;
+        }),
+      };
+    });
   }
 
   function addRow() {

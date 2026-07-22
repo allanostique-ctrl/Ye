@@ -42,7 +42,9 @@ function CalculatorPageInner() {
     );
   }
 
-  return <MeasurementsTab draft={job.draft} updateDraft={updateDraft} onNext={() => goNext('checklist')} />;
+  return (
+    <MeasurementsTab draft={job.draft} updateDraft={updateDraft} priceBook={priceBook} onNext={() => goNext('checklist')} />
+  );
 }
 
 export default function CalculatorPage() {

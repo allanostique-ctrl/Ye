@@ -5,14 +5,19 @@ import {
   CalculatorDraft,
   MeasurementFieldKey,
   MEASUREMENT_FIELDS,
+  PriceBook,
   emptyMeasurementSection,
+  sidingKey as buildSidingKey,
 } from '@/lib/types';
+import { BRANDS, STYLES } from '@/lib/brands';
 import { effectiveMeasurements, effectiveRowArea } from '@/lib/calc/measurements';
+import { syncSidingRowsFromSelections, assignSectionToSidingKey } from '@/lib/calc/sidingRows';
 import { NextButton } from '@/components/NextButton';
 
 interface Props {
   draft: CalculatorDraft;
   updateDraft: (updater: (d: CalculatorDraft) => CalculatorDraft) => void;
+  priceBook: PriceBook;
   onNext: () => void;
 }
 
@@ -32,7 +37,7 @@ function fmt(n: number): string {
   return (n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
 }
 
-export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
+export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawText, setRawText] = useState<string | null>(null);
@@ -100,6 +105,26 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
         sections: d.measurements.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)),
       },
     }));
+  }
+
+  // Picking a siding material for a section here auto-checks it in the Checklist
+  // grid and links this section straight to the matching Siding Type row in Quote
+  // Details, so its area is already populated by the time you get there.
+  function setSectionSidingKey(sectionId: string, newKey: string | null) {
+    updateDraft((d) => {
+      const nextSections = d.measurements.sections.map((s) => (s.id === sectionId ? { ...s, sidingKey: newKey } : s));
+      const nextSelections = newKey
+        ? { ...d.quoteDetails.sidingSelections, [newKey]: true }
+        : d.quoteDetails.sidingSelections;
+      const syncedRows = syncSidingRowsFromSelections(d.sidingTypeRows, nextSelections, priceBook);
+      const nextRows = assignSectionToSidingKey(syncedRows, sectionId, newKey);
+      return {
+        ...d,
+        measurements: { ...d.measurements, sections: nextSections },
+        quoteDetails: { ...d.quoteDetails, sidingSelections: nextSelections },
+        sidingTypeRows: nextRows,
+      };
+    });
   }
 
   async function handleUpload(file: File) {
@@ -247,7 +272,9 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
           Turn this on when a job mixes siding materials across different elevations and HOVER&rsquo;s single facade
           total doesn&rsquo;t break things out the way you need. The Reference Measurements above stay put as your
           total; this table lets you split facade area, openings, corners, and starter length across named sections,
-          and the section totals — not the reference row — feed the rest of the job.
+          and the section totals — not the reference row — feed the rest of the job. Pick a siding material per
+          section below and it auto-checks that combo in Checklist and links the section straight to its Quote
+          Details row, area included.
         </p>
       </div>
 
@@ -292,6 +319,28 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
               </tr>
             </thead>
             <tbody>
+              <tr className="bg-brand-50/40">
+                <td className="font-medium">Siding Material</td>
+                {m.sections.map((section) => (
+                  <td key={section.id}>
+                    <select
+                      className="field-input"
+                      value={section.sidingKey ?? ''}
+                      onChange={(e) => setSectionSidingKey(section.id, e.target.value || null)}
+                    >
+                      <option value="">Select…</option>
+                      {BRANDS.map((brand) =>
+                        STYLES.map((style) => (
+                          <option key={`${brand}|${style}`} value={buildSidingKey(brand, style)}>
+                            {brand} — {style}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </td>
+                ))}
+                <td></td>
+              </tr>
               {PER_SECTION_KEYS.map((f) => {
                 const total = em[f.key];
                 const reference = m[f.key];

@@ -100,6 +100,9 @@ export interface MeasurementSection {
   outsideCornerLengthLnft: number;
   insideCornerLengthLnft: number;
   starterLengthLnft: number;
+  /** Siding material×style picked for this section, as `${Brand}|${Style}` — drives the
+   *  Checklist checkbox and the linked Siding Type row in Quote Details automatically. */
+  sidingKey: string | null;
 }
 
 export function emptyMeasurementSection(name = ''): MeasurementSection {
@@ -111,6 +114,7 @@ export function emptyMeasurementSection(name = ''): MeasurementSection {
     outsideCornerLengthLnft: 0,
     insideCornerLengthLnft: 0,
     starterLengthLnft: 0,
+    sidingKey: null,
   };
 }
 
@@ -446,6 +450,13 @@ export function defaultDraft(jobId: ID): CalculatorDraft {
 export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
   return {
     ...draft,
+    measurements: {
+      ...draft.measurements,
+      sections: (draft.measurements?.sections ?? []).map((s) => ({
+        ...s,
+        sidingKey: s.sidingKey ?? null,
+      })),
+    },
     sidingTypeRows: (draft.sidingTypeRows ?? []).map((row) => ({
       ...row,
       sectionIds: row.sectionIds ?? [],
