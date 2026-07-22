@@ -28,6 +28,7 @@ const OTHER_CATEGORIES: { key: Category; title: string }[] = [
   { key: 'aluminum-wraps', title: 'Aluminum Wraps' },
   { key: 'door-window-installs', title: 'Door & Window Installs' },
   { key: 'painting-coating', title: 'Painting / Coating' },
+  { key: 'equipment-rental', title: 'Equipment Rental' },
   { key: 'one-time-charges', title: 'One-Time Charges' },
 ];
 

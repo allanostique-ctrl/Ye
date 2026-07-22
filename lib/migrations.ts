@@ -1,6 +1,18 @@
-import { PriceBook, CalcRulesConfig, BrandCalcRules } from './types';
+import { Category, PriceBook, CalcRulesConfig, BrandCalcRules } from './types';
 import { buildDefaultPriceBook, buildDefaultPriceBookItems, PRICE_BOOK_SCHEMA_VERSION } from './defaultPriceBook';
 import { buildDefaultCalcRules, CALC_RULES_SCHEMA_VERSION } from './defaultCalcRules';
+
+/**
+ * A default item that moves to a new category after it may already have been merged
+ * into someone's saved price book can't be fixed by the additive merge below — the id
+ * already exists, so it's never touched. This is a one-time, id-keyed patch for exactly
+ * that case: it only overwrites the `category` field (never name/price/active, so any
+ * user edits to those survive) whenever a known id's stored category is stale.
+ */
+const CATEGORY_CORRECTIONS: Record<string, Category> = {
+  'otc-dumpster': 'equipment-rental',
+  'otc-portable-toilet': 'equipment-rental',
+};
 
 /**
  * Merge newly-introduced default catalog items into a user's saved price book
@@ -21,7 +33,7 @@ export function migratePriceBook(stored: unknown): PriceBook {
 
   const knownDefaultIds = new Set(Array.isArray(s.knownDefaultIds) ? s.knownDefaultIds : []);
   const existingIds = new Set(s.items.map((i) => i.id));
-  const items = [...s.items];
+  let items = [...s.items];
 
   for (const defaultItem of buildDefaultPriceBookItems()) {
     if (!knownDefaultIds.has(defaultItem.id)) {
@@ -32,6 +44,11 @@ export function migratePriceBook(stored: unknown): PriceBook {
       }
     }
   }
+
+  items = items.map((item) => {
+    const correctedCategory = CATEGORY_CORRECTIONS[item.id];
+    return correctedCategory && item.category !== correctedCategory ? { ...item, category: correctedCategory } : item;
+  });
 
   return {
     schemaVersion: PRICE_BOOK_SCHEMA_VERSION,
