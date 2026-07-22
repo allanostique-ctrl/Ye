@@ -1,31 +1,28 @@
 import { ACCESSORY_IDS } from '../defaultPriceBook';
-import { SidingMaterialSelections, TrimConfig } from '../types';
-import { Brand, Style, isTrimBoardBrand } from '../brands';
-
-export function trimBoardModeFromSelections(selections: SidingMaterialSelections): boolean {
-  return Object.entries(selections).some(([key, checked]) => {
-    if (!checked) return false;
-    const [brand] = key.split('|') as [Brand, Style];
-    return isTrimBoardBrand(brand);
-  });
-}
+import { TrimConfig, defaultTrimConfig } from '../types';
+import { Brand, isTrimBoardBrand } from '../brands';
 
 /**
- * Re-applies the brand-driven trim package whenever the checked siding materials change.
- * Any manual override the user made survives until the NEXT material change, at which
- * point every trim field (except top-of-siding mode, which is brand-independent) resets
- * and re-derives from scratch.
+ * Derives the brand-driven trim/accessory package for a single Siding Type row's
+ * OWN brand — each row gets its own package, since a mixed-brand job (e.g. Vinyl
+ * + Hardie) needs Vinyl J-channel on the Vinyl row and Hardie trim board on the
+ * Hardie row at the same time, not one shared job-wide setting.
+ *
+ * Any manual override the user made on this row survives until the NEXT material
+ * change on THIS row (i.e. its brand changes), at which point every trim field
+ * (except top-of-siding mode, which is brand-independent) resets and re-derives
+ * from scratch.
  */
-export function applyMaterialChange(current: TrimConfig, selections: SidingMaterialSelections): TrimConfig {
-  const trimBoardMode = trimBoardModeFromSelections(selections);
+export function trimConfigForBrand(brand: Brand, current?: TrimConfig): TrimConfig {
+  const topOfSidingMode = current?.topOfSidingMode ?? defaultTrimConfig().topOfSidingMode;
 
-  if (trimBoardMode) {
+  if (isTrimBoardBrand(brand)) {
     return {
       openingsTrimProductId: { value: ACCESSORY_IDS.trimBoardOpenings, overridden: false },
       outsideCornerProductId: { value: ACCESSORY_IDS.trimBoardOutsideCorner, overridden: false },
       insideCornerProductId: { value: ACCESSORY_IDS.trimBoardInsideCorner, overridden: false },
       starterProductId: { value: ACCESSORY_IDS.metalStarter, overridden: false },
-      topOfSidingMode: current.topOfSidingMode,
+      topOfSidingMode,
       buttJointFlashing: { value: true, overridden: false },
       touchUpPaint: { value: true, overridden: false },
       caulkSealant: { value: true, overridden: false },
@@ -37,7 +34,7 @@ export function applyMaterialChange(current: TrimConfig, selections: SidingMater
     outsideCornerProductId: { value: ACCESSORY_IDS.plasticOutsideCorner, overridden: false },
     insideCornerProductId: { value: ACCESSORY_IDS.plasticInsideCorner, overridden: false },
     starterProductId: { value: ACCESSORY_IDS.plasticStarter, overridden: false },
-    topOfSidingMode: current.topOfSidingMode,
+    topOfSidingMode,
     buttJointFlashing: { value: false, overridden: false },
     touchUpPaint: { value: false, overridden: false },
     caulkSealant: { value: false, overridden: false },

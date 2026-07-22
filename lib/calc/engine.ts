@@ -10,10 +10,10 @@ import {
   SectionTotals,
   WorkSectionKey,
 } from '../types';
-import { brandToCalcRuleKey, isTrimBoardBrand } from '../brands';
+import { brandToCalcRuleKey } from '../brands';
 import { ACCESSORY_IDS } from '../defaultPriceBook';
 import { purchaseQtyFor, Rounding } from './quantity';
-import { effectiveMeasurements } from './measurements';
+import { effectiveRowArea, measurementsForRow } from './measurements';
 
 function findItem(priceBook: PriceBook, id: string | null | undefined): PriceBookItem | undefined {
   if (!id) return undefined;
@@ -72,85 +72,85 @@ export function computeCalculation(
   lineIdCounter = 0;
   const ws = draft.workSections;
   const lines: ComputedLineItem[] = [];
-  const em = effectiveMeasurements(draft.measurements);
 
   // ---------- Siding ----------
   if (ws.siding) {
+    const totalSidingArea = draft.sidingTypeRows.reduce((sum, r) => sum + effectiveRowArea(r, draft.measurements), 0);
+
     for (const row of draft.sidingTypeRows) {
-      const item = findItem(priceBook, row.productId);
-      if (!item || row.areaSqft <= 0) continue;
+      const rowArea = effectiveRowArea(row, draft.measurements);
       const rules = calcRules[brandToCalcRuleKey(row.brand)];
-      lines.push(buildLine('siding', item, row.areaSqft, rules.sidingWastePct, rules.purchaseRounding, rules.laborRateMultiplier));
-    }
 
-    // Siding accessories driven by trimConfig — brand-driven switch already decided which
-    // productIds are selected; the engine just prices whatever is currently configured.
-    const trimBrandRow = draft.sidingTypeRows.find((r) => isTrimBoardBrand(r.brand));
-    const trimRules = calcRules[trimBrandRow ? brandToCalcRuleKey(trimBrandRow.brand) : 'vinyl'];
-    const tc = draft.trimConfig;
-
-    const openingsItem = findItem(priceBook, tc.openingsTrimProductId.value);
-    if (openingsItem && em.openingsPerimeterLnft > 0) {
-      lines.push(
-        buildLine('siding', openingsItem, em.openingsPerimeterLnft, trimRules.trimWastePct, trimRules.purchaseRounding, trimRules.laborRateMultiplier)
-      );
-    }
-
-    const outsideItem = findItem(priceBook, tc.outsideCornerProductId.value);
-    if (outsideItem && em.outsideCornerLengthLnft > 0) {
-      // pieces/ft is expressed as extra coverage density: qty of "linear feet of piece" needed = length * piecesPerFt
-      const adjustedQty = em.outsideCornerLengthLnft * trimRules.outsideCornerPiecesPerFt;
-      lines.push(
-        buildLine('siding', outsideItem, adjustedQty, trimRules.trimWastePct, trimRules.purchaseRounding, trimRules.laborRateMultiplier)
-      );
-    }
-
-    const insideItem = findItem(priceBook, tc.insideCornerProductId.value);
-    if (insideItem && em.insideCornerLengthLnft > 0) {
-      const adjustedQty = em.insideCornerLengthLnft * trimRules.insideCornerPiecesPerFt;
-      lines.push(
-        buildLine('siding', insideItem, adjustedQty, trimRules.trimWastePct, trimRules.purchaseRounding, trimRules.laborRateMultiplier)
-      );
-    }
-
-    const starterItem = findItem(priceBook, tc.starterProductId.value);
-    if (starterItem && em.starterLengthLnft > 0) {
-      lines.push(
-        buildLine('siding', starterItem, em.starterLengthLnft, trimRules.trimWastePct, trimRules.purchaseRounding, trimRules.laborRateMultiplier)
-      );
-    }
-
-    // Top-of-siding trim runs the eave line; "eaves + gables" adds an estimated allowance
-    // for gable rakes since HOVER's export doesn't report gable length separately.
-    const topTrimId = tc.topOfSidingMode.value === 'eaves-gables' ? ACCESSORY_IDS.topTrimEavesGables : ACCESSORY_IDS.topTrimEavesOnly;
-    const topTrimItem = findItem(priceBook, topTrimId);
-    if (topTrimItem && draft.measurements.fasciaLengthLnft > 0) {
-      const gableAllowance = tc.topOfSidingMode.value === 'eaves-gables' ? 1.4 : 1;
-      lines.push(
-        buildLine(
-          'siding',
-          topTrimItem,
-          draft.measurements.fasciaLengthLnft * gableAllowance,
-          topTrimItem.wastePct,
-          'up',
-          trimRules.laborRateMultiplier
-        )
-      );
-    }
-
-    if (tc.buttJointFlashing.value) {
-      const item = findItem(priceBook, ACCESSORY_IDS.buttJointFlashing);
-      if (item && em.facadeAreaSqft > 0) {
-        lines.push(buildLine('siding', item, em.facadeAreaSqft, item.wastePct, 'up', trimRules.laborRateMultiplier));
+      const item = findItem(priceBook, row.productId);
+      if (item && rowArea > 0) {
+        lines.push(buildLine('siding', item, rowArea, rules.sidingWastePct, rules.purchaseRounding, rules.laborRateMultiplier));
       }
-    }
-    if (tc.touchUpPaint.value) {
-      const item = findItem(priceBook, ACCESSORY_IDS.touchUpPaint);
-      if (item) lines.push(buildLine('siding', item, em.facadeAreaSqft, item.wastePct, 'up', trimRules.laborRateMultiplier));
-    }
-    if (tc.caulkSealant.value) {
-      const item = findItem(priceBook, ACCESSORY_IDS.caulkSealant);
-      if (item) lines.push(buildLine('siding', item, em.facadeAreaSqft, item.wastePct, 'up', trimRules.laborRateMultiplier));
+
+      // Each row carries its OWN accessory/trim package — a mixed-brand job (e.g. Vinyl +
+      // Hardie) prices Vinyl J-channel for the Vinyl row and Hardie trim board for the
+      // Hardie row independently, using that row's own share of the job's measurements.
+      const tc = row.trimConfig;
+      const rm = measurementsForRow(row, draft.measurements, draft.sidingTypeRows);
+      const roofLineShare = totalSidingArea > 0 ? rowArea / totalSidingArea : 0;
+
+      const openingsItem = findItem(priceBook, tc.openingsTrimProductId.value);
+      if (openingsItem && rm.openingsPerimeterLnft > 0) {
+        lines.push(
+          buildLine('siding', openingsItem, rm.openingsPerimeterLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+        );
+      }
+
+      const outsideItem = findItem(priceBook, tc.outsideCornerProductId.value);
+      if (outsideItem && rm.outsideCornerLengthLnft > 0) {
+        // pieces/ft is expressed as extra coverage density: qty of "linear feet of piece" needed = length * piecesPerFt
+        const adjustedQty = rm.outsideCornerLengthLnft * rules.outsideCornerPiecesPerFt;
+        lines.push(
+          buildLine('siding', outsideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+        );
+      }
+
+      const insideItem = findItem(priceBook, tc.insideCornerProductId.value);
+      if (insideItem && rm.insideCornerLengthLnft > 0) {
+        const adjustedQty = rm.insideCornerLengthLnft * rules.insideCornerPiecesPerFt;
+        lines.push(
+          buildLine('siding', insideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+        );
+      }
+
+      const starterItem = findItem(priceBook, tc.starterProductId.value);
+      if (starterItem && rm.starterLengthLnft > 0) {
+        lines.push(
+          buildLine('siding', starterItem, rm.starterLengthLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+        );
+      }
+
+      // Top-of-siding trim runs the eave line, allocated by this row's share of total siding
+      // area since HOVER's export doesn't report roofline length per siding material; "eaves
+      // + gables" adds an estimated allowance for gable rakes on top of that.
+      const topTrimId = tc.topOfSidingMode.value === 'eaves-gables' ? ACCESSORY_IDS.topTrimEavesGables : ACCESSORY_IDS.topTrimEavesOnly;
+      const topTrimItem = findItem(priceBook, topTrimId);
+      const rowFasciaShare = draft.measurements.fasciaLengthLnft * roofLineShare;
+      if (topTrimItem && rowFasciaShare > 0) {
+        const gableAllowance = tc.topOfSidingMode.value === 'eaves-gables' ? 1.4 : 1;
+        lines.push(
+          buildLine('siding', topTrimItem, rowFasciaShare * gableAllowance, topTrimItem.wastePct, 'up', rules.laborRateMultiplier)
+        );
+      }
+
+      if (tc.buttJointFlashing.value) {
+        const item2 = findItem(priceBook, ACCESSORY_IDS.buttJointFlashing);
+        if (item2 && rowArea > 0) {
+          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+        }
+      }
+      if (tc.touchUpPaint.value) {
+        const item2 = findItem(priceBook, ACCESSORY_IDS.touchUpPaint);
+        if (item2 && rowArea > 0) lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+      }
+      if (tc.caulkSealant.value) {
+        const item2 = findItem(priceBook, ACCESSORY_IDS.caulkSealant);
+        if (item2 && rowArea > 0) lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+      }
     }
 
     // Brand labor minimum: top up siding-category labor for each brand bucket represented on the job.

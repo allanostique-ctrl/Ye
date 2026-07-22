@@ -4,13 +4,15 @@ import {
   CalcRulesConfig,
   CalculatorDraft,
   PriceBook,
+  PriceBookItem,
   SidingTypeRow,
   TopOfSidingMode,
   WORK_SECTIONS,
 } from '@/lib/types';
 import { BRANDS, Brand, STYLES, Style, brandSupportsPrimed } from '@/lib/brands';
 import { MAX_SIDING_ROWS } from '@/lib/calc/sidingRows';
-import { effectiveMeasurements } from '@/lib/calc/measurements';
+import { trimConfigForBrand } from '@/lib/calc/trimSwitch';
+import { effectiveMeasurements, effectiveRowArea } from '@/lib/calc/measurements';
 import { computeCalculation } from '@/lib/calc/engine';
 import { LineItemPickList } from '@/components/LineItemPickList';
 import { MaterialLaborList } from '@/components/MaterialLaborList';
@@ -30,15 +32,141 @@ function findSidingProduct(priceBook: PriceBook, brand: Brand, style: Style, pri
   );
 }
 
+function SidingAccessoriesCard({
+  row,
+  accessoryItems,
+  onUpdateTrim,
+}: {
+  row: SidingTypeRow;
+  accessoryItems: PriceBookItem[];
+  onUpdateTrim: <K extends keyof SidingTypeRow['trimConfig']>(key: K, value: SidingTypeRow['trimConfig'][K]['value']) => void;
+}) {
+  const tc = row.trimConfig;
+  return (
+    <div className="card">
+      <h2 className="mb-3 text-lg font-bold">
+        Siding Accessories — {row.brand} {row.style}
+        {row.primed ? ' (Primed)' : ''}
+      </h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="field-label">Trim Around Openings</label>
+          <select
+            className="field-input"
+            value={tc.openingsTrimProductId.value ?? ''}
+            onChange={(e) => onUpdateTrim('openingsTrimProductId', e.target.value || null)}
+          >
+            <option value="">None</option>
+            {accessoryItems.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Outside Corner Posts</label>
+          <select
+            className="field-input"
+            value={tc.outsideCornerProductId.value ?? ''}
+            onChange={(e) => onUpdateTrim('outsideCornerProductId', e.target.value || null)}
+          >
+            <option value="">None</option>
+            {accessoryItems.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Inside Corner Posts</label>
+          <select
+            className="field-input"
+            value={tc.insideCornerProductId.value ?? ''}
+            onChange={(e) => onUpdateTrim('insideCornerProductId', e.target.value || null)}
+          >
+            <option value="">None</option>
+            {accessoryItems.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Starter</label>
+          <select
+            className="field-input"
+            value={tc.starterProductId.value ?? ''}
+            onChange={(e) => onUpdateTrim('starterProductId', e.target.value || null)}
+          >
+            <option value="">None</option>
+            {accessoryItems.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <label className="field-label">Top-of-Siding Trim</label>
+        <div className="flex gap-2">
+          {(['eaves-only', 'eaves-gables'] as TopOfSidingMode[]).map((mode) => (
+            <button
+              key={mode}
+              className="pill"
+              data-active={tc.topOfSidingMode.value === mode ? 'true' : 'false'}
+              onClick={() => onUpdateTrim('topOfSidingMode', mode)}
+            >
+              {mode === 'eaves-only' ? 'Eaves Only' : 'Eaves + Gables'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          className="pill"
+          data-active={tc.buttJointFlashing.value ? 'true' : 'false'}
+          onClick={() => onUpdateTrim('buttJointFlashing', !tc.buttJointFlashing.value)}
+        >
+          {tc.buttJointFlashing.value ? '☑' : '☐'} Butt Joint Flashing
+        </button>
+        <button
+          className="pill"
+          data-active={tc.touchUpPaint.value ? 'true' : 'false'}
+          onClick={() => onUpdateTrim('touchUpPaint', !tc.touchUpPaint.value)}
+        >
+          {tc.touchUpPaint.value ? '☑' : '☐'} Touch-Up Paint
+        </button>
+        <button
+          className="pill"
+          data-active={tc.caulkSealant.value ? 'true' : 'false'}
+          onClick={() => onUpdateTrim('caulkSealant', !tc.caulkSealant.value)}
+        >
+          {tc.caulkSealant.value ? '☑' : '☐'} Caulk / Sealant
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNext }: Props) {
   const qd = draft.quoteDetails;
-  const tc = draft.trimConfig;
   const em = effectiveMeasurements(draft.measurements);
   const accessoryItems = priceBook.items.filter((i) => i.category === 'siding-accessory' && i.active);
   const result = computeCalculation(draft, priceBook, calcRules);
+  const multiSection = draft.measurements.multiSection;
+  const sections = draft.measurements.sections;
 
-  const areaSum = draft.sidingTypeRows.reduce((s, r) => s + (r.areaSqft || 0), 0);
+  const areaSum = draft.sidingTypeRows.reduce((s, r) => s + effectiveRowArea(r, draft.measurements), 0);
   const areaMismatch = Math.abs(areaSum - em.facadeAreaSqft) > 0.5;
+  const unassignedSections = multiSection
+    ? sections.filter((s) => !draft.sidingTypeRows.some((r) => r.sectionIds.includes(s.id)))
+    : [];
 
   function updateRow(id: string, patch: Partial<SidingTypeRow>) {
     updateDraft((d) => ({
@@ -50,7 +178,29 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
           const product = findSidingProduct(priceBook, merged.brand, merged.style, merged.primed);
           merged.productId = product?.id ?? null;
         }
+        if ('brand' in patch) {
+          // A brand change is a material change for THIS row — re-derive its own
+          // accessory package fresh, same as the checklist-driven auto-swap.
+          merged.trimConfig = trimConfigForBrand(merged.brand, r.trimConfig);
+        }
         return merged;
+      }),
+    }));
+  }
+
+  function toggleRowSection(rowId: string, sectionId: string) {
+    updateDraft((d) => ({
+      ...d,
+      sidingTypeRows: d.sidingTypeRows.map((r) => {
+        if (r.id === rowId) {
+          const has = r.sectionIds.includes(sectionId);
+          return { ...r, sectionIds: has ? r.sectionIds.filter((id) => id !== sectionId) : [...r.sectionIds, sectionId] };
+        }
+        // A section can only feed one row at a time — unlink it from wherever else it was.
+        if (r.sectionIds.includes(sectionId)) {
+          return { ...r, sectionIds: r.sectionIds.filter((id) => id !== sectionId) };
+        }
+        return r;
       }),
     }));
   }
@@ -65,7 +215,17 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         ...d,
         sidingTypeRows: [
           ...d.sidingTypeRows,
-          { id: crypto.randomUUID(), brand, style, primed: false, productId: product?.id ?? null, areaSqft: 0, autoGenerated: false },
+          {
+            id: crypto.randomUUID(),
+            brand,
+            style,
+            primed: false,
+            productId: product?.id ?? null,
+            areaSqft: 0,
+            sectionIds: [],
+            autoGenerated: false,
+            trimConfig: trimConfigForBrand(brand),
+          },
         ],
       };
     });
@@ -75,10 +235,16 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
     updateDraft((d) => ({ ...d, sidingTypeRows: d.sidingTypeRows.filter((r) => r.id !== id) }));
   }
 
-  function setTrimField<K extends keyof typeof tc>(key: K, value: (typeof tc)[K]['value']) {
+  function setRowTrimField<K extends keyof SidingTypeRow['trimConfig']>(
+    rowId: string,
+    key: K,
+    value: SidingTypeRow['trimConfig'][K]['value']
+  ) {
     updateDraft((d) => ({
       ...d,
-      trimConfig: { ...d.trimConfig, [key]: { value, overridden: true } },
+      sidingTypeRows: d.sidingTypeRows.map((r) =>
+        r.id === rowId ? { ...r, trimConfig: { ...r.trimConfig, [key]: { value, overridden: true } } } : r
+      ),
     }));
   }
 
@@ -97,62 +263,89 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
               <th>Brand</th>
               <th>Style</th>
               <th>Primed</th>
+              {multiSection && <th>Section(s)</th>}
               <th className="text-right">Area (sqft)</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {draft.sidingTypeRows.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <select className="field-input" value={row.brand} onChange={(e) => updateRow(row.id, { brand: e.target.value as Brand })}>
-                    {BRANDS.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <select className="field-input" value={row.style} onChange={(e) => updateRow(row.id, { style: e.target.value as Style })}>
-                    {STYLES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <select
-                    className="field-input"
-                    value={row.primed ? 'primed' : 'unprimed'}
-                    disabled={!brandSupportsPrimed(row.brand)}
-                    onChange={(e) => updateRow(row.id, { primed: e.target.value === 'primed' })}
-                  >
-                    <option value="unprimed">Unprimed</option>
-                    <option value="primed">Primed</option>
-                  </select>
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="field-input text-right"
-                    value={row.areaSqft}
-                    onChange={(e) => updateRow(row.id, { areaSqft: parseFloat(e.target.value) || 0 })}
-                  />
-                </td>
-                <td>
-                  <button className="btn btn-danger btn-sm" onClick={() => removeRow(row.id)}>
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {draft.sidingTypeRows.map((row) => {
+              const linked = multiSection && row.sectionIds.length > 0;
+              return (
+                <tr key={row.id}>
+                  <td>
+                    <select className="field-input" value={row.brand} onChange={(e) => updateRow(row.id, { brand: e.target.value as Brand })}>
+                      {BRANDS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select className="field-input" value={row.style} onChange={(e) => updateRow(row.id, { style: e.target.value as Style })}>
+                      {STYLES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      className="field-input"
+                      value={row.primed ? 'primed' : 'unprimed'}
+                      disabled={!brandSupportsPrimed(row.brand)}
+                      onChange={(e) => updateRow(row.id, { primed: e.target.value === 'primed' })}
+                    >
+                      <option value="unprimed">Unprimed</option>
+                      <option value="primed">Primed</option>
+                    </select>
+                  </td>
+                  {multiSection && (
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {sections.map((s) => (
+                          <button
+                            key={s.id}
+                            className="pill btn-sm"
+                            data-active={row.sectionIds.includes(s.id) ? 'true' : 'false'}
+                            onClick={() => toggleRowSection(row.id, s.id)}
+                          >
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  )}
+                  <td>
+                    {linked ? (
+                      <div className="text-right">
+                        <span className="font-semibold">{effectiveRowArea(row, draft.measurements).toFixed(1)}</span>
+                        <div className="text-xs text-gray-400">from sections</div>
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        step="any"
+                        className="field-input text-right"
+                        value={row.areaSqft}
+                        onChange={(e) => updateRow(row.id, { areaSqft: parseFloat(e.target.value) || 0 })}
+                      />
+                    )}
+                  </td>
+                  <td>
+                    <button className="btn btn-danger btn-sm" onClick={() => removeRow(row.id)}>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3}>Sum vs. Facade Area ({em.facadeAreaSqft.toFixed(1)} sqft)</td>
+              <td colSpan={multiSection ? 4 : 3}>Sum vs. Facade Area ({em.facadeAreaSqft.toFixed(1)} sqft)</td>
               <td className="text-right">{areaSum.toFixed(1)}</td>
               <td></td>
             </tr>
@@ -163,85 +356,21 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             ⚠ Siding row areas ({areaSum.toFixed(1)} sqft) don&rsquo;t match the facade total ({em.facadeAreaSqft.toFixed(1)} sqft).
           </p>
         )}
+        {unassignedSections.length > 0 && (
+          <p className="mt-2 text-sm font-semibold text-amber-600">
+            ⚠ These sections aren&rsquo;t linked to a siding row yet: {unassignedSections.map((s) => s.name).join(', ')}.
+          </p>
+        )}
       </div>
 
-      <div className="card">
-        <h2 className="mb-3 text-lg font-bold">Siding Accessories</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="field-label">Trim Around Openings</label>
-            <select className="field-input" value={tc.openingsTrimProductId.value ?? ''} onChange={(e) => setTrimField('openingsTrimProductId', e.target.value || null)}>
-              <option value="">None</option>
-              {accessoryItems.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Outside Corner Posts</label>
-            <select className="field-input" value={tc.outsideCornerProductId.value ?? ''} onChange={(e) => setTrimField('outsideCornerProductId', e.target.value || null)}>
-              <option value="">None</option>
-              {accessoryItems.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Inside Corner Posts</label>
-            <select className="field-input" value={tc.insideCornerProductId.value ?? ''} onChange={(e) => setTrimField('insideCornerProductId', e.target.value || null)}>
-              <option value="">None</option>
-              {accessoryItems.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Starter</label>
-            <select className="field-input" value={tc.starterProductId.value ?? ''} onChange={(e) => setTrimField('starterProductId', e.target.value || null)}>
-              <option value="">None</option>
-              {accessoryItems.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="field-label">Top-of-Siding Trim</label>
-          <div className="flex gap-2">
-            {(['eaves-only', 'eaves-gables'] as TopOfSidingMode[]).map((mode) => (
-              <button
-                key={mode}
-                className="pill"
-                data-active={tc.topOfSidingMode.value === mode ? 'true' : 'false'}
-                onClick={() => setTrimField('topOfSidingMode', mode)}
-              >
-                {mode === 'eaves-only' ? 'Eaves Only' : 'Eaves + Gables'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button className="pill" data-active={tc.buttJointFlashing.value ? 'true' : 'false'} onClick={() => setTrimField('buttJointFlashing', !tc.buttJointFlashing.value)}>
-            {tc.buttJointFlashing.value ? '☑' : '☐'} Butt Joint Flashing
-          </button>
-          <button className="pill" data-active={tc.touchUpPaint.value ? 'true' : 'false'} onClick={() => setTrimField('touchUpPaint', !tc.touchUpPaint.value)}>
-            {tc.touchUpPaint.value ? '☑' : '☐'} Touch-Up Paint
-          </button>
-          <button className="pill" data-active={tc.caulkSealant.value ? 'true' : 'false'} onClick={() => setTrimField('caulkSealant', !tc.caulkSealant.value)}>
-            {tc.caulkSealant.value ? '☑' : '☐'} Caulk / Sealant
-          </button>
-        </div>
-      </div>
+      {draft.sidingTypeRows.map((row) => (
+        <SidingAccessoriesCard
+          key={row.id}
+          row={row}
+          accessoryItems={accessoryItems}
+          onUpdateTrim={(key, value) => setRowTrimField(row.id, key, value)}
+        />
+      ))}
 
       {draft.workSections.sheathing && (
         <div className="card">

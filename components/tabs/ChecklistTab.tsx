@@ -9,7 +9,6 @@ import {
 } from '@/lib/types';
 import { BRANDS, STYLES } from '@/lib/brands';
 import { syncSidingRowsFromSelections } from '@/lib/calc/sidingRows';
-import { applyMaterialChange } from '@/lib/calc/trimSwitch';
 import { effectiveMeasurements } from '@/lib/calc/measurements';
 import { NextButton } from '@/components/NextButton';
 
@@ -44,13 +43,10 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
       const key = sidingKey(brand, style);
       const nextSelections = { ...d.quoteDetails.sidingSelections, [key]: !d.quoteDetails.sidingSelections[key] };
       const nextRows = syncSidingRowsFromSelections(d.sidingTypeRows, nextSelections, priceBook);
-      const nextTrim = applyMaterialChange(d.trimConfig, nextSelections);
       return {
         ...d,
         quoteDetails: { ...d.quoteDetails, sidingSelections: nextSelections },
         sidingTypeRows: nextRows,
-        trimConfig: nextTrim,
-        lastMaterialSignature: JSON.stringify(nextSelections),
       };
     });
   }

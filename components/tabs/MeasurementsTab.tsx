@@ -7,7 +7,7 @@ import {
   MEASUREMENT_FIELDS,
   emptyMeasurementSection,
 } from '@/lib/types';
-import { effectiveMeasurements } from '@/lib/calc/measurements';
+import { effectiveMeasurements, effectiveRowArea } from '@/lib/calc/measurements';
 import { NextButton } from '@/components/NextButton';
 
 interface Props {
@@ -53,17 +53,26 @@ export function MeasurementsTab({ draft, updateDraft, onNext }: Props) {
   }
 
   function setMultiSection(on: boolean) {
-    updateDraft((d) => ({
-      ...d,
-      measurements: {
-        ...d.measurements,
-        multiSection: on,
-        sections:
-          on && d.measurements.sections.length === 0
-            ? [emptyMeasurementSection('Section 1'), emptyMeasurementSection('Section 2')]
-            : d.measurements.sections,
-      },
-    }));
+    updateDraft((d) => {
+      // Turning this off shouldn't silently zero out a row's area — snapshot
+      // whatever each row's linked sections currently add up to into its
+      // manual area field first, so nothing is lost.
+      const sidingTypeRows = on
+        ? d.sidingTypeRows
+        : d.sidingTypeRows.map((row) => ({ ...row, areaSqft: effectiveRowArea(row, d.measurements) }));
+      return {
+        ...d,
+        sidingTypeRows,
+        measurements: {
+          ...d.measurements,
+          multiSection: on,
+          sections:
+            on && d.measurements.sections.length === 0
+              ? [emptyMeasurementSection('Section 1'), emptyMeasurementSection('Section 2')]
+              : d.measurements.sections,
+        },
+      };
+    });
   }
 
   function addSection() {

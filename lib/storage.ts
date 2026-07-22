@@ -1,4 +1,4 @@
-import { Job, PriceBook, CalcRulesConfig, ID, defaultDraft } from './types';
+import { Job, PriceBook, CalcRulesConfig, ID, defaultDraft, normalizeDraft } from './types';
 import { migratePriceBook, migrateCalcRules } from './migrations';
 import { buildDefaultPriceBook } from './defaultPriceBook';
 import { buildDefaultCalcRules } from './defaultCalcRules';
@@ -56,7 +56,8 @@ function writeJSON(key: string, value: unknown) {
 // ---------- Jobs ----------
 
 export function getJobs(): Job[] {
-  return readJSON<Job[]>(KEYS.jobs) ?? [];
+  const jobs = readJSON<Job[]>(KEYS.jobs) ?? [];
+  return jobs.map((j) => ({ ...j, draft: normalizeDraft(j.draft) }));
 }
 
 export function getJob(id: ID): Job | undefined {
