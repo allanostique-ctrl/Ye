@@ -558,6 +558,9 @@ export interface ComputedLineItem {
   unit: Unit;
   qty: number;
   purchaseQty: number;
+  /** How many `unit`s one purchase unit covers (e.g. 100 sqft per "square") — needed to
+   *  turn materialUnitPrice (priced per purchase unit) into a true $/unit figure. */
+  coveragePerUnit: number;
   materialUnitPrice: number;
   laborRate: number;
   materialCost: number;

@@ -77,7 +77,9 @@ export function MaterialLaborList({
             <th>Item</th>
             <th className="text-right">Qty</th>
             <th>Unit</th>
+            <th className="text-right">Material $/Unit</th>
             <th className="text-right">Material $</th>
+            <th className="text-right">Labor $/Unit</th>
             <th className="text-right">Labor $</th>
             <th className="text-right">Total $</th>
           </tr>
@@ -86,7 +88,7 @@ export function MaterialLaborList({
           {result.sections.map((sec) => (
             <Fragment key={sec.section}>
               <tr className="section-header">
-                <td colSpan={6}>{SECTION_LABELS[sec.section]}</td>
+                <td colSpan={8}>{SECTION_LABELS[sec.section]}</td>
               </tr>
               {sec.items.map((item) => (
                 <tr key={item.id}>
@@ -98,6 +100,16 @@ export function MaterialLaborList({
                   </td>
                   <td className="text-right">{item.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
                   <td>{item.unit}</td>
+                  <td
+                    className="text-right text-gray-500"
+                    title={
+                      item.coveragePerUnit !== 1
+                        ? `${formatMoney(item.materialUnitPrice)} per purchase unit (covers ${item.coveragePerUnit} ${item.unit})`
+                        : undefined
+                    }
+                  >
+                    {formatMoney(item.materialUnitPrice / (item.coveragePerUnit || 1))}
+                  </td>
                   <td className="text-right">
                     {onOverride ? (
                       <EditableMoneyCell item={item} field="materialCost" onOverride={onOverride} />
@@ -105,6 +117,7 @@ export function MaterialLaborList({
                       formatMoney(item.materialCost)
                     )}
                   </td>
+                  <td className="text-right text-gray-500">{formatMoney(item.laborRate)}</td>
                   <td className="text-right">
                     {onOverride ? (
                       <EditableMoneyCell item={item} field="laborCost" onOverride={onOverride} />
@@ -116,10 +129,11 @@ export function MaterialLaborList({
                 </tr>
               ))}
               <tr>
-                <td colSpan={3} className="text-right font-semibold text-gray-500">
+                <td colSpan={4} className="text-right font-semibold text-gray-500">
                   {SECTION_LABELS[sec.section]} Subtotal
                 </td>
                 <td className="text-right font-semibold">{formatMoney(sec.materialSubtotal)}</td>
+                <td></td>
                 <td className="text-right font-semibold">{formatMoney(sec.laborSubtotal)}</td>
                 <td className="text-right font-semibold">{formatMoney(sec.totalSubtotal)}</td>
               </tr>
@@ -128,8 +142,9 @@ export function MaterialLaborList({
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={3}>Grand Total</td>
+            <td colSpan={4}>Grand Total</td>
             <td className="text-right">{formatMoney(result.materialTotal)}</td>
+            <td></td>
             <td className="text-right">{formatMoney(result.laborTotal)}</td>
             <td className="text-right">{formatMoney(result.grandTotal)}</td>
           </tr>

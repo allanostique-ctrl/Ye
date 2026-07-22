@@ -112,31 +112,74 @@ export function csvToPriceBookItems(text: string): PriceBookItem[] {
   return items;
 }
 
-/** Exports the computed Material and Labor List — every row keeps Material $ and Labor $ as separate columns. */
+/**
+ * Exports the computed Material and Labor List with the full calculation trail per line —
+ * calculated qty, purchase qty (after waste/rounding), unit rates, and extended totals —
+ * so every number on the job can be traced back to how it was derived, not just the total.
+ */
 export function calculationResultToCSV(result: CalculationResult): string {
-  const header = ['Section', 'Item', 'Qty', 'Unit', 'Material $', 'Labor $', 'Total $'].join(',');
+  const header = [
+    'Section',
+    'Item',
+    'Brand',
+    'Unit',
+    'Calculated Qty',
+    'Purchase Qty',
+    'Coverage Per Purchase Unit',
+    'Material $ Per Purchase Unit',
+    'Effective Material $ Per Unit',
+    'Material $',
+    'Labor $ Per Unit',
+    'Labor $',
+    'Total $',
+    'Material Overridden',
+    'Labor Overridden',
+  ].join(',');
+  const blankRow = (label: string, materialSubtotal: number, laborSubtotal: number, totalSubtotal: number, section = ''): string =>
+    [
+      csvEscape(section),
+      csvEscape(label),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      csvEscape(materialSubtotal.toFixed(2)),
+      '',
+      csvEscape(laborSubtotal.toFixed(2)),
+      csvEscape(totalSubtotal.toFixed(2)),
+      '',
+      '',
+    ].join(',');
   const rows: string[] = [];
   for (const section of result.sections) {
     for (const item of section.items) {
+      const effectiveMaterialUnitPrice = item.materialUnitPrice / (item.coveragePerUnit || 1);
       rows.push(
         [
           csvEscape(SECTION_LABELS[section.section]),
           csvEscape(item.name),
-          csvEscape(item.qty),
+          csvEscape(item.brand),
           csvEscape(item.unit),
+          csvEscape(item.qty.toFixed(2)),
+          csvEscape(item.purchaseQty.toFixed(2)),
+          csvEscape(item.coveragePerUnit),
+          csvEscape(item.materialUnitPrice.toFixed(2)),
+          csvEscape(effectiveMaterialUnitPrice.toFixed(2)),
           csvEscape(item.materialCost.toFixed(2)),
+          csvEscape(item.laborRate.toFixed(2)),
           csvEscape(item.laborCost.toFixed(2)),
           csvEscape(item.totalCost.toFixed(2)),
+          csvEscape(item.overridden.material ? 'yes' : 'no'),
+          csvEscape(item.overridden.labor ? 'yes' : 'no'),
         ].join(',')
       );
     }
-    rows.push(
-      [csvEscape(SECTION_LABELS[section.section]), 'Subtotal', '', '', section.materialSubtotal.toFixed(2), section.laborSubtotal.toFixed(2), section.totalSubtotal.toFixed(2)].join(
-        ','
-      )
-    );
+    rows.push(blankRow('Subtotal', section.materialSubtotal, section.laborSubtotal, section.totalSubtotal, SECTION_LABELS[section.section]));
   }
-  rows.push(['', 'GRAND TOTAL', '', '', result.materialTotal.toFixed(2), result.laborTotal.toFixed(2), result.grandTotal.toFixed(2)].join(','));
+  rows.push(blankRow('GRAND TOTAL', result.materialTotal, result.laborTotal, result.grandTotal));
   return [header, ...rows].join('\n');
 }
 
