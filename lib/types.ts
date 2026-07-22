@@ -16,6 +16,7 @@ export type WorkSectionKey =
   | 'aluminumWraps'
   | 'doorWindowInstalls'
   | 'paintingCoating'
+  | 'equipmentRental'
   | 'oneTimeCharges';
 
 export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
@@ -30,6 +31,7 @@ export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
   { key: 'aluminumWraps', label: 'Aluminum Wraps' },
   { key: 'doorWindowInstalls', label: 'Door & Window Installs' },
   { key: 'paintingCoating', label: 'Painting/Coating' },
+  { key: 'equipmentRental', label: 'Equipment Rental' },
   { key: 'oneTimeCharges', label: 'One-Time Charges' },
 ];
 
@@ -45,6 +47,7 @@ export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
   'aluminumWraps',
   'doorWindowInstalls',
   'paintingCoating',
+  'equipmentRental',
   'oneTimeCharges',
 ];
 
@@ -65,6 +68,7 @@ export function defaultWorkSections(): Record<WorkSectionKey, boolean> {
     aluminumWraps: false,
     doorWindowInstalls: false,
     paintingCoating: false,
+    equipmentRental: false,
     oneTimeCharges: false,
   };
 }
@@ -220,10 +224,13 @@ export interface TrimConfig {
   outsideCornerProductId: TrimField<ID | null>;
   insideCornerProductId: TrimField<ID | null>;
   starterProductId: TrimField<ID | null>;
+  fastenerProductId: TrimField<ID | null>;
   topOfSidingMode: TrimField<TopOfSidingMode>;
   buttJointFlashing: TrimField<boolean>;
   touchUpPaint: TrimField<boolean>;
   caulkSealant: TrimField<boolean>;
+  /** Not brand-driven — situational (roof/wall intersections), so it isn't reset on a material change. */
+  stepFlashing: TrimField<boolean>;
 }
 
 export function defaultTrimConfig(): TrimConfig {
@@ -232,10 +239,12 @@ export function defaultTrimConfig(): TrimConfig {
     outsideCornerProductId: tf<ID | null>(null),
     insideCornerProductId: tf<ID | null>(null),
     starterProductId: tf<ID | null>(null),
+    fastenerProductId: tf<ID | null>(null),
     topOfSidingMode: tf<TopOfSidingMode>('eaves-only'),
     buttJointFlashing: tf(false),
     touchUpPaint: tf(false),
     caulkSealant: tf(false),
+    stepFlashing: tf(false),
   };
 }
 
@@ -272,8 +281,6 @@ export interface OneTimeCharges {
   detachResetLightQty: number;
   tripCharge: boolean;
   laborMinimum: boolean;
-  portableToilet: boolean;
-  dumpsterWasteDisposal: boolean;
   materialDeliveryFee: boolean;
   permitFee: boolean;
   scaffoldingLiftRental: boolean;
@@ -286,8 +293,6 @@ export function defaultOneTimeCharges(): OneTimeCharges {
     detachResetLightQty: 0,
     tripCharge: false,
     laborMinimum: false,
-    portableToilet: false,
-    dumpsterWasteDisposal: false,
     materialDeliveryFee: false,
     permitFee: false,
     scaffoldingLiftRental: false,
@@ -314,6 +319,7 @@ export interface QuoteDetails {
   aluminumWraps: LineItemPick[];
   doorWindowInstalls: LineItemPick[];
   paintingCoating: LineItemPick[];
+  equipmentRental: LineItemPick[];
   oneTimeCharges: OneTimeCharges;
 }
 
@@ -331,6 +337,7 @@ export function defaultQuoteDetails(): QuoteDetails {
     aluminumWraps: [],
     doorWindowInstalls: [],
     paintingCoating: [],
+    equipmentRental: [],
     oneTimeCharges: defaultOneTimeCharges(),
   };
 }
@@ -352,6 +359,7 @@ export type Category =
   | 'aluminum-wraps'
   | 'door-window-installs'
   | 'painting-coating'
+  | 'equipment-rental'
   | 'one-time-charges';
 
 export const CATEGORY_TO_SECTION: Record<Category, WorkSectionKey> = {
@@ -367,6 +375,7 @@ export const CATEGORY_TO_SECTION: Record<Category, WorkSectionKey> = {
   'aluminum-wraps': 'aluminumWraps',
   'door-window-installs': 'doorWindowInstalls',
   'painting-coating': 'paintingCoating',
+  'equipment-rental': 'equipmentRental',
   'one-time-charges': 'oneTimeCharges',
 };
 
@@ -422,6 +431,13 @@ export function calcRulesFor(config: CalcRulesConfig, key: CalcRuleBrandKey): Br
 
 // ---------- Calculator draft (per job) ----------
 
+/** A one-off manual correction to a single computed line's Material $ and/or Labor $,
+ *  keyed by that line's stable origin key (see engine.ts) so it survives recalculation. */
+export interface LineItemOverride {
+  materialCost?: number;
+  laborCost?: number;
+}
+
 export interface CalculatorDraft {
   jobId: ID;
   measurements: Measurements;
@@ -429,6 +445,7 @@ export interface CalculatorDraft {
   workSections: Record<WorkSectionKey, boolean>;
   quoteDetails: QuoteDetails;
   sidingTypeRows: SidingTypeRow[];
+  lineItemOverrides: Record<string, LineItemOverride>;
   updatedAt: string;
 }
 
@@ -440,6 +457,7 @@ export function defaultDraft(jobId: ID): CalculatorDraft {
     workSections: defaultWorkSections(),
     quoteDetails: defaultQuoteDetails(),
     sidingTypeRows: [],
+    lineItemOverrides: {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -457,11 +475,16 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
         sidingKey: s.sidingKey ?? null,
       })),
     },
+    quoteDetails: {
+      ...draft.quoteDetails,
+      equipmentRental: draft.quoteDetails?.equipmentRental ?? [],
+    },
     sidingTypeRows: (draft.sidingTypeRows ?? []).map((row) => ({
       ...row,
       sectionIds: row.sectionIds ?? [],
-      trimConfig: row.trimConfig ?? defaultTrimConfig(),
+      trimConfig: { ...defaultTrimConfig(), ...row.trimConfig },
     })),
+    lineItemOverrides: draft.lineItemOverrides ?? {},
   };
 }
 
@@ -494,6 +517,9 @@ export interface ComputedLineItem {
   materialCost: number;
   laborCost: number;
   totalCost: number;
+  /** Stable key identifying this line's origin across recalculations — used to attach a manual override. */
+  overrideKey: string;
+  overridden: { material: boolean; labor: boolean };
 }
 
 export interface SectionTotals {

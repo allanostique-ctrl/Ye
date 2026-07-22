@@ -111,6 +111,21 @@ function SidingAccessoriesCard({
             ))}
           </select>
         </div>
+        <div>
+          <label className="field-label">Fasteners</label>
+          <select
+            className="field-input"
+            value={tc.fastenerProductId.value ?? ''}
+            onChange={(e) => onUpdateTrim('fastenerProductId', e.target.value || null)}
+          >
+            <option value="">None</option>
+            {accessoryItems.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -150,6 +165,13 @@ function SidingAccessoriesCard({
           onClick={() => onUpdateTrim('caulkSealant', !tc.caulkSealant.value)}
         >
           {tc.caulkSealant.value ? '☑' : '☐'} Caulk / Sealant
+        </button>
+        <button
+          className="pill"
+          data-active={tc.stepFlashing.value ? 'true' : 'false'}
+          onClick={() => onUpdateTrim('stepFlashing', !tc.stepFlashing.value)}
+        >
+          {tc.stepFlashing.value ? '☑' : '☐'} Step Flashing
         </button>
       </div>
     </div>
@@ -258,6 +280,23 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         r.id === rowId ? { ...r, trimConfig: { ...r.trimConfig, [key]: { value, overridden: true } } } : r
       ),
     }));
+  }
+
+  function handleOverride(overrideKey: string, field: 'materialCost' | 'laborCost', value: number | null) {
+    updateDraft((d) => {
+      const existing = d.lineItemOverrides[overrideKey] ?? {};
+      const next = { ...existing, [field]: value === null ? undefined : value };
+      const cleaned: typeof next = {};
+      if (next.materialCost !== undefined) cleaned.materialCost = next.materialCost;
+      if (next.laborCost !== undefined) cleaned.laborCost = next.laborCost;
+      const nextOverrides = { ...d.lineItemOverrides };
+      if (Object.keys(cleaned).length === 0) {
+        delete nextOverrides[overrideKey];
+      } else {
+        nextOverrides[overrideKey] = cleaned;
+      }
+      return { ...d, lineItemOverrides: nextOverrides };
+    });
   }
 
   return (
@@ -473,12 +512,25 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         </div>
       )}
 
+      {draft.workSections.equipmentRental && (
+        <div className="card">
+          <h2 className="mb-3 text-lg font-bold">Equipment Rental</h2>
+          <LineItemPickList
+            category="equipment-rental"
+            picks={qd.equipmentRental}
+            priceBook={priceBook}
+            defaultQty={1}
+            onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, equipmentRental: picks } }))}
+          />
+        </div>
+      )}
+
       {draft.workSections.soffit && (
         <div className="card">
           <h2 className="mb-1 text-lg font-bold">Soffit</h2>
           <p className="mb-3 text-xs text-gray-500">Material and removal choice set in Checklist. Computed below.</p>
           {result.sections.find((s) => s.section === 'soffit') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'soffit')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} />
+            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'soffit')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
           )}
         </div>
       )}
@@ -488,7 +540,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
           <h2 className="mb-1 text-lg font-bold">Fascia</h2>
           <p className="mb-3 text-xs text-gray-500">Material and removal choice set in Checklist. Computed below.</p>
           {result.sections.find((s) => s.section === 'fascia') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'fascia')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} />
+            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'fascia')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
           )}
         </div>
       )}
@@ -498,7 +550,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
           <h2 className="mb-1 text-lg font-bold">Gutters</h2>
           <p className="mb-3 text-xs text-gray-500">Size, downspouts, guards, and removal choice set in Checklist. Computed below.</p>
           {result.sections.find((s) => s.section === 'gutters') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'gutters')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} />
+            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'gutters')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
           )}
         </div>
       )}
@@ -512,8 +564,6 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
                 ['threeStory', '3-Story Charge', 'toggle'],
                 ['tripCharge', 'Trip Charge', 'toggle'],
                 ['laborMinimum', 'Labor Minimum', 'toggle'],
-                ['portableToilet', 'Portable Toilet Rental', 'toggle'],
-                ['dumpsterWasteDisposal', 'Dumpster / Waste Disposal', 'toggle'],
                 ['materialDeliveryFee', 'Material Delivery Fee', 'toggle'],
                 ['permitFee', 'Permit Fee', 'toggle'],
                 ['scaffoldingLiftRental', 'Scaffolding / Lift Rental', 'toggle'],
@@ -567,7 +617,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold">Material and Labor List</h2>
-        <MaterialLaborList result={result} exportFileName="material-and-labor-list.csv" />
+        <MaterialLaborList result={result} exportFileName="material-and-labor-list.csv" onOverride={handleOverride} />
       </div>
 
       <NextButton onClick={onNext} label="Next: Proposal" />

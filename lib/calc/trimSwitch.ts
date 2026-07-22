@@ -15,6 +15,8 @@ import { Brand, isTrimBoardBrand } from '../brands';
  */
 export function trimConfigForBrand(brand: Brand, current?: TrimConfig): TrimConfig {
   const topOfSidingMode = current?.topOfSidingMode ?? defaultTrimConfig().topOfSidingMode;
+  // Step flashing is situational (roof/wall intersections), not brand-driven — preserve it too.
+  const stepFlashing = current?.stepFlashing ?? defaultTrimConfig().stepFlashing;
 
   if (isTrimBoardBrand(brand)) {
     return {
@@ -22,10 +24,12 @@ export function trimConfigForBrand(brand: Brand, current?: TrimConfig): TrimConf
       outsideCornerProductId: { value: ACCESSORY_IDS.trimBoardOutsideCorner, overridden: false },
       insideCornerProductId: { value: ACCESSORY_IDS.trimBoardInsideCorner, overridden: false },
       starterProductId: { value: ACCESSORY_IDS.metalStarter, overridden: false },
+      fastenerProductId: { value: ACCESSORY_IDS.fiberCementNails, overridden: false },
       topOfSidingMode,
       buttJointFlashing: { value: true, overridden: false },
       touchUpPaint: { value: true, overridden: false },
       caulkSealant: { value: true, overridden: false },
+      stepFlashing,
     };
   }
 
@@ -34,9 +38,11 @@ export function trimConfigForBrand(brand: Brand, current?: TrimConfig): TrimConf
     outsideCornerProductId: { value: ACCESSORY_IDS.plasticOutsideCorner, overridden: false },
     insideCornerProductId: { value: ACCESSORY_IDS.plasticInsideCorner, overridden: false },
     starterProductId: { value: ACCESSORY_IDS.plasticStarter, overridden: false },
+    fastenerProductId: { value: ACCESSORY_IDS.vinylNails, overridden: false },
     topOfSidingMode,
     buttJointFlashing: { value: false, overridden: false },
     touchUpPaint: { value: false, overridden: false },
     caulkSealant: { value: false, overridden: false },
+    stepFlashing,
   };
 }

@@ -17,6 +17,9 @@ export const ACCESSORY_IDS = {
   buttJointFlashing: 'acc-butt-joint-flashing',
   touchUpPaint: 'acc-touch-up-paint',
   caulkSealant: 'acc-caulk-sealant',
+  vinylNails: 'acc-vinyl-nails',
+  fiberCementNails: 'acc-fiber-cement-nails',
+  stepFlashing: 'acc-step-flashing',
 } as const;
 
 function item(partial: Omit<PriceBookItem, 'isDefault' | 'active'>): PriceBookItem {
@@ -247,6 +250,45 @@ function accessoryItems(): PriceBookItem[] {
       materialPrice: 6.5,
       laborRate: 0.08,
     }),
+    item({
+      id: ACCESSORY_IDS.vinylNails,
+      category: 'siding-accessory',
+      brand: 'Vinyl',
+      style: '',
+      primed: false,
+      name: 'Siding Nails (Vinyl)',
+      unit: 'sqft',
+      coveragePerUnit: 1000,
+      wastePct: 5,
+      materialPrice: 42,
+      laborRate: 0,
+    }),
+    item({
+      id: ACCESSORY_IDS.fiberCementNails,
+      category: 'siding-accessory',
+      brand: 'Universal',
+      style: '',
+      primed: false,
+      name: 'Siding Nails (Fiber Cement — Hardie/LP)',
+      unit: 'sqft',
+      coveragePerUnit: 800,
+      wastePct: 5,
+      materialPrice: 58,
+      laborRate: 0,
+    }),
+    item({
+      id: ACCESSORY_IDS.stepFlashing,
+      category: 'siding-accessory',
+      brand: 'Universal',
+      style: '',
+      primed: false,
+      name: 'Step Flashing',
+      unit: 'lnft',
+      coveragePerUnit: 10,
+      wastePct: 5,
+      materialPrice: 14,
+      laborRate: 1.1,
+    }),
   ];
 }
 
@@ -277,6 +319,19 @@ function sheathingItems(): PriceBookItem[] {
       wastePct: 10,
       materialPrice: 145,
       laborRate: 0.12,
+    }),
+    item({
+      id: 'sheathing-housewrap-tape',
+      category: 'sheathing',
+      brand: 'Universal',
+      style: '',
+      primed: false,
+      name: 'House Wrap Seam Tape',
+      unit: 'lnft',
+      coveragePerUnit: 165,
+      wastePct: 5,
+      materialPrice: 24,
+      laborRate: 0.05,
     }),
   ];
 }
@@ -459,6 +514,7 @@ function fixtureItems(): PriceBookItem[] {
     item({ id: 'fixture-electrical-block', category: 'fixtures', brand: 'Universal', style: '', primed: false, name: 'Electrical Mount Block', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 15, laborRate: 20 }),
     item({ id: 'fixture-gas-meter-mount', category: 'fixtures', brand: 'Universal', style: '', primed: false, name: 'Gas Meter Mount Block', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 20, laborRate: 25 }),
     item({ id: 'fixture-mailbox-mount', category: 'fixtures', brand: 'Universal', style: '', primed: false, name: 'Mailbox / House Number Reset', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 10, laborRate: 20 }),
+    item({ id: 'fixture-mounting-block', category: 'fixtures', brand: 'Universal', style: '', primed: false, name: 'Siding Mounting Block (Universal)', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 12, laborRate: 15 }),
   ];
 }
 
@@ -501,6 +557,8 @@ function doorWindowItems(): PriceBookItem[] {
     item({ id: 'install-window', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Window Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 375, laborRate: 175 }),
     item({ id: 'install-entry-door', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Entry Door Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 550, laborRate: 250 }),
     item({ id: 'install-storm-door', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Storm Door Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 275, laborRate: 125 }),
+    item({ id: 'vycor-tape', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Vycor Tape (Window/Door Flashing)', unit: 'lnft', coveragePerUnit: 75, wastePct: 10, materialPrice: 38, laborRate: 0.6 }),
+    item({ id: 'window-head-flashing', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Window Head Flashing / Drip Cap', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 14, laborRate: 12 }),
   ];
 }
 
@@ -518,11 +576,18 @@ function oneTimeChargeItems(): PriceBookItem[] {
     item({ id: 'otc-detach-reset-light', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Detach & Reset Exterior Light', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 0, laborRate: 35 }),
     item({ id: 'otc-trip-charge', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Trip Charge', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 0, laborRate: 125 }),
     item({ id: 'otc-labor-minimum', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Labor Minimum', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 0, laborRate: 450 }),
-    item({ id: 'otc-portable-toilet', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Portable Toilet Rental', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 175, laborRate: 0 }),
-    item({ id: 'otc-dumpster', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Dumpster / Waste Disposal', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 495, laborRate: 0 }),
     item({ id: 'otc-material-delivery', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Material Delivery Fee', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 150, laborRate: 0 }),
     item({ id: 'otc-permit-fee', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Permit Fee', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 250, laborRate: 0 }),
     item({ id: 'otc-scaffolding-lift', category: 'one-time-charges', brand: 'Universal', style: '', primed: false, name: 'Scaffolding / Lift Rental', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 650, laborRate: 0 }),
+  ];
+}
+
+function equipmentRentalItems(): PriceBookItem[] {
+  return [
+    item({ id: 'otc-portable-toilet', category: 'equipment-rental', brand: 'Universal', style: '', primed: false, name: 'Portable Toilet Rental', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 175, laborRate: 0 }),
+    item({ id: 'otc-dumpster', category: 'equipment-rental', brand: 'Universal', style: '', primed: false, name: 'Dumpster / Waste Disposal', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 495, laborRate: 0 }),
+    item({ id: 'equip-boom-crane', category: 'equipment-rental', brand: 'Universal', style: '', primed: false, name: 'Boom Crane Rental', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 850, laborRate: 0 }),
+    item({ id: 'equip-crane', category: 'equipment-rental', brand: 'Universal', style: '', primed: false, name: 'Crane Rental', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 1200, laborRate: 0 }),
   ];
 }
 
@@ -540,6 +605,7 @@ export function buildDefaultPriceBookItems(): PriceBookItem[] {
     ...aluminumWrapItems(),
     ...doorWindowItems(),
     ...paintingItems(),
+    ...equipmentRentalItems(),
     ...oneTimeChargeItems(),
   ];
 }

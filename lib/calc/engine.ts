@@ -32,11 +32,15 @@ function buildLine(
   qty: number,
   wastePct: number,
   rounding: Rounding,
-  laborRateMultiplier: number
+  laborRateMultiplier: number,
+  overrideKey: string
 ): ComputedLineItem {
   const purchaseQty = purchaseQtyFor(qty, wastePct, item.coveragePerUnit, rounding);
-  const materialCost = purchaseQty * item.materialPrice;
-  const laborCost = qty * item.laborRate * laborRateMultiplier;
+  // Round to cents at the source (not just at display time) so ordinary floating-point
+  // noise (e.g. 180 * 1.1 === 198.00000000000003 in JS) never leaks into an editable
+  // field, the override system, or the CSV export.
+  const materialCost = Math.round(purchaseQty * item.materialPrice * 100) / 100;
+  const laborCost = Math.round(qty * item.laborRate * laborRateMultiplier * 100) / 100;
   return {
     id: nextLineId(),
     section,
@@ -51,6 +55,8 @@ function buildLine(
     materialCost,
     laborCost,
     totalCost: materialCost + laborCost,
+    overrideKey,
+    overridden: { material: false, labor: false },
   };
 }
 
@@ -59,9 +65,27 @@ function linesFromPicks(section: WorkSectionKey, picks: LineItemPick[], priceBoo
   for (const pick of picks) {
     const item = findItem(priceBook, pick.productId);
     if (!item || pick.qty <= 0) continue;
-    lines.push(buildLine(section, item, pick.qty, item.wastePct, 'up', 1));
+    lines.push(buildLine(section, item, pick.qty, item.wastePct, 'up', 1, `pick-${pick.id}`));
   }
   return lines;
+}
+
+/** Applies any manual Material $/Labor $ corrections on top of the computed values, keyed
+ *  by each line's stable overrideKey so they survive recalculation. */
+function applyOverrides(lines: ComputedLineItem[], overrides: Record<string, { materialCost?: number; laborCost?: number }>): void {
+  for (const line of lines) {
+    const override = overrides[line.overrideKey];
+    if (!override) continue;
+    if (override.materialCost !== undefined) {
+      line.materialCost = override.materialCost;
+      line.overridden.material = true;
+    }
+    if (override.laborCost !== undefined) {
+      line.laborCost = override.laborCost;
+      line.overridden.labor = true;
+    }
+    line.totalCost = line.materialCost + line.laborCost;
+  }
 }
 
 export function computeCalculation(
@@ -83,7 +107,9 @@ export function computeCalculation(
 
       const item = findItem(priceBook, row.productId);
       if (item && rowArea > 0) {
-        lines.push(buildLine('siding', item, rowArea, rules.sidingWastePct, rules.purchaseRounding, rules.laborRateMultiplier));
+        lines.push(
+          buildLine('siding', item, rowArea, rules.sidingWastePct, rules.purchaseRounding, rules.laborRateMultiplier, `siding-material-${row.id}`)
+        );
       }
 
       // Each row carries its OWN accessory/trim package — a mixed-brand job (e.g. Vinyl +
@@ -96,7 +122,15 @@ export function computeCalculation(
       const openingsItem = findItem(priceBook, tc.openingsTrimProductId.value);
       if (openingsItem && rm.openingsPerimeterLnft > 0) {
         lines.push(
-          buildLine('siding', openingsItem, rm.openingsPerimeterLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+          buildLine(
+            'siding',
+            openingsItem,
+            rm.openingsPerimeterLnft,
+            rules.trimWastePct,
+            rules.purchaseRounding,
+            rules.laborRateMultiplier,
+            `siding-${row.id}-openings`
+          )
         );
       }
 
@@ -105,7 +139,15 @@ export function computeCalculation(
         // pieces/ft is expressed as extra coverage density: qty of "linear feet of piece" needed = length * piecesPerFt
         const adjustedQty = rm.outsideCornerLengthLnft * rules.outsideCornerPiecesPerFt;
         lines.push(
-          buildLine('siding', outsideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+          buildLine(
+            'siding',
+            outsideItem,
+            adjustedQty,
+            rules.trimWastePct,
+            rules.purchaseRounding,
+            rules.laborRateMultiplier,
+            `siding-${row.id}-outsideCorner`
+          )
         );
       }
 
@@ -113,14 +155,37 @@ export function computeCalculation(
       if (insideItem && rm.insideCornerLengthLnft > 0) {
         const adjustedQty = rm.insideCornerLengthLnft * rules.insideCornerPiecesPerFt;
         lines.push(
-          buildLine('siding', insideItem, adjustedQty, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+          buildLine(
+            'siding',
+            insideItem,
+            adjustedQty,
+            rules.trimWastePct,
+            rules.purchaseRounding,
+            rules.laborRateMultiplier,
+            `siding-${row.id}-insideCorner`
+          )
         );
       }
 
       const starterItem = findItem(priceBook, tc.starterProductId.value);
       if (starterItem && rm.starterLengthLnft > 0) {
         lines.push(
-          buildLine('siding', starterItem, rm.starterLengthLnft, rules.trimWastePct, rules.purchaseRounding, rules.laborRateMultiplier)
+          buildLine(
+            'siding',
+            starterItem,
+            rm.starterLengthLnft,
+            rules.trimWastePct,
+            rules.purchaseRounding,
+            rules.laborRateMultiplier,
+            `siding-${row.id}-starter`
+          )
+        );
+      }
+
+      const fastenerItem = findItem(priceBook, tc.fastenerProductId.value);
+      if (fastenerItem && rowArea > 0) {
+        lines.push(
+          buildLine('siding', fastenerItem, rowArea, fastenerItem.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-fastener`)
         );
       }
 
@@ -133,23 +198,41 @@ export function computeCalculation(
       if (topTrimItem && rowFasciaShare > 0) {
         const gableAllowance = tc.topOfSidingMode.value === 'eaves-gables' ? 1.4 : 1;
         lines.push(
-          buildLine('siding', topTrimItem, rowFasciaShare * gableAllowance, topTrimItem.wastePct, 'up', rules.laborRateMultiplier)
+          buildLine(
+            'siding',
+            topTrimItem,
+            rowFasciaShare * gableAllowance,
+            topTrimItem.wastePct,
+            'up',
+            rules.laborRateMultiplier,
+            `siding-${row.id}-topTrim`
+          )
         );
       }
 
+      if (tc.stepFlashing.value) {
+        const item2 = findItem(priceBook, ACCESSORY_IDS.stepFlashing);
+        if (item2 && rowFasciaShare > 0) {
+          lines.push(buildLine('siding', item2, rowFasciaShare, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-stepFlashing`));
+        }
+      }
       if (tc.buttJointFlashing.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.buttJointFlashing);
         if (item2 && rowArea > 0) {
-          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-buttJoint`));
         }
       }
       if (tc.touchUpPaint.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.touchUpPaint);
-        if (item2 && rowArea > 0) lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+        if (item2 && rowArea > 0) {
+          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-touchUpPaint`));
+        }
       }
       if (tc.caulkSealant.value) {
         const item2 = findItem(priceBook, ACCESSORY_IDS.caulkSealant);
-        if (item2 && rowArea > 0) lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier));
+        if (item2 && rowArea > 0) {
+          lines.push(buildLine('siding', item2, rowArea, item2.wastePct, 'up', rules.laborRateMultiplier, `siding-${row.id}-caulk`));
+        }
       }
     }
 
@@ -166,6 +249,7 @@ export function computeCalculation(
         })
         .reduce((sum, l) => sum + l.laborCost, 0);
       if (laborSoFar > 0 && laborSoFar < rules.laborMinimumDollars) {
+        const topUp = Math.round((rules.laborMinimumDollars - laborSoFar) * 100) / 100;
         lines.push({
           id: nextLineId(),
           section: 'siding',
@@ -176,10 +260,12 @@ export function computeCalculation(
           qty: 1,
           purchaseQty: 1,
           materialUnitPrice: 0,
-          laborRate: rules.laborMinimumDollars - laborSoFar,
+          laborRate: topUp,
           materialCost: 0,
-          laborCost: rules.laborMinimumDollars - laborSoFar,
-          totalCost: rules.laborMinimumDollars - laborSoFar,
+          laborCost: topUp,
+          totalCost: topUp,
+          overrideKey: `siding-labor-min-${bucket}`,
+          overridden: { material: false, labor: false },
         });
       }
     }
@@ -195,12 +281,12 @@ export function computeCalculation(
     const spec = draft.quoteDetails.soffit;
     const item = findItem(priceBook, spec.productId);
     if (item && draft.measurements.soffitAreaSqft > 0) {
-      lines.push(buildLine('soffit', item, draft.measurements.soffitAreaSqft, item.wastePct, 'up', 1));
+      lines.push(buildLine('soffit', item, draft.measurements.soffitAreaSqft, item.wastePct, 'up', 1, 'soffit-material'));
     }
     if (spec.includeRemoval) {
       const removal = findItem(priceBook, 'soffit-removal');
       if (removal && draft.measurements.soffitAreaSqft > 0) {
-        lines.push(buildLine('soffit', removal, draft.measurements.soffitAreaSqft, 0, 'exact', 1));
+        lines.push(buildLine('soffit', removal, draft.measurements.soffitAreaSqft, 0, 'exact', 1, 'soffit-removal'));
       }
     }
   }
@@ -210,12 +296,12 @@ export function computeCalculation(
     const spec = draft.quoteDetails.fascia;
     const item = findItem(priceBook, spec.productId);
     if (item && draft.measurements.fasciaLengthLnft > 0) {
-      lines.push(buildLine('fascia', item, draft.measurements.fasciaLengthLnft, item.wastePct, 'up', 1));
+      lines.push(buildLine('fascia', item, draft.measurements.fasciaLengthLnft, item.wastePct, 'up', 1, 'fascia-material'));
     }
     if (spec.includeRemoval) {
       const removal = findItem(priceBook, 'fascia-removal');
       if (removal && draft.measurements.fasciaLengthLnft > 0) {
-        lines.push(buildLine('fascia', removal, draft.measurements.fasciaLengthLnft, 0, 'exact', 1));
+        lines.push(buildLine('fascia', removal, draft.measurements.fasciaLengthLnft, 0, 'exact', 1, 'fascia-removal'));
       }
     }
   }
@@ -225,22 +311,22 @@ export function computeCalculation(
     const spec = draft.quoteDetails.gutters;
     const item = findItem(priceBook, spec.productId);
     if (item && draft.measurements.gutterLengthLnft > 0) {
-      lines.push(buildLine('gutters', item, draft.measurements.gutterLengthLnft, item.wastePct, 'up', 1));
+      lines.push(buildLine('gutters', item, draft.measurements.gutterLengthLnft, item.wastePct, 'up', 1, 'gutters-material'));
     }
     if (spec.downspoutQty > 0) {
       const downspout = findItem(priceBook, 'gutter-downspout');
-      if (downspout) lines.push(buildLine('gutters', downspout, spec.downspoutQty, 0, 'exact', 1));
+      if (downspout) lines.push(buildLine('gutters', downspout, spec.downspoutQty, 0, 'exact', 1, 'gutters-downspout'));
     }
     if (spec.includeGuards) {
       const guards = findItem(priceBook, 'gutter-guards');
       if (guards && draft.measurements.gutterLengthLnft > 0) {
-        lines.push(buildLine('gutters', guards, draft.measurements.gutterLengthLnft, guards.wastePct, 'up', 1));
+        lines.push(buildLine('gutters', guards, draft.measurements.gutterLengthLnft, guards.wastePct, 'up', 1, 'gutters-guards'));
       }
     }
     if (spec.includeRemoval) {
       const removal = findItem(priceBook, 'gutter-removal');
       if (removal && draft.measurements.gutterLengthLnft > 0) {
-        lines.push(buildLine('gutters', removal, draft.measurements.gutterLengthLnft, 0, 'exact', 1));
+        lines.push(buildLine('gutters', removal, draft.measurements.gutterLengthLnft, 0, 'exact', 1, 'gutters-removal'));
       }
     }
   }
@@ -275,24 +361,29 @@ export function computeCalculation(
     lines.push(...linesFromPicks('paintingCoating', draft.quoteDetails.paintingCoating, priceBook));
   }
 
+  // ---------- Equipment Rental ----------
+  if (ws.equipmentRental) {
+    lines.push(...linesFromPicks('equipmentRental', draft.quoteDetails.equipmentRental, priceBook));
+  }
+
   // ---------- One-Time Charges ----------
   if (ws.oneTimeCharges) {
     const otc = draft.quoteDetails.oneTimeCharges;
-    const maybeAdd = (id: string, qty: number) => {
+    const maybeAdd = (id: string, qty: number, overrideKey: string) => {
       const item = findItem(priceBook, id);
-      if (item && qty > 0) lines.push(buildLine('oneTimeCharges', item, qty, 0, 'exact', 1));
+      if (item && qty > 0) lines.push(buildLine('oneTimeCharges', item, qty, 0, 'exact', 1, overrideKey));
     };
-    if (otc.threeStory) maybeAdd('otc-three-story', 1);
-    if (otc.osbInsulationBoardSqft > 0) maybeAdd('otc-osb-replacement', otc.osbInsulationBoardSqft);
-    if (otc.detachResetLightQty > 0) maybeAdd('otc-detach-reset-light', otc.detachResetLightQty);
-    if (otc.tripCharge) maybeAdd('otc-trip-charge', 1);
-    if (otc.laborMinimum) maybeAdd('otc-labor-minimum', 1);
-    if (otc.portableToilet) maybeAdd('otc-portable-toilet', 1);
-    if (otc.dumpsterWasteDisposal) maybeAdd('otc-dumpster', 1);
-    if (otc.materialDeliveryFee) maybeAdd('otc-material-delivery', 1);
-    if (otc.permitFee) maybeAdd('otc-permit-fee', 1);
-    if (otc.scaffoldingLiftRental) maybeAdd('otc-scaffolding-lift', 1);
+    if (otc.threeStory) maybeAdd('otc-three-story', 1, 'otc-threeStory');
+    if (otc.osbInsulationBoardSqft > 0) maybeAdd('otc-osb-replacement', otc.osbInsulationBoardSqft, 'otc-osb');
+    if (otc.detachResetLightQty > 0) maybeAdd('otc-detach-reset-light', otc.detachResetLightQty, 'otc-detachResetLight');
+    if (otc.tripCharge) maybeAdd('otc-trip-charge', 1, 'otc-tripCharge');
+    if (otc.laborMinimum) maybeAdd('otc-labor-minimum', 1, 'otc-laborMinimum');
+    if (otc.materialDeliveryFee) maybeAdd('otc-material-delivery', 1, 'otc-materialDelivery');
+    if (otc.permitFee) maybeAdd('otc-permit-fee', 1, 'otc-permitFee');
+    if (otc.scaffoldingLiftRental) maybeAdd('otc-scaffolding-lift', 1, 'otc-scaffoldingLift');
   }
+
+  applyOverrides(lines, draft.lineItemOverrides ?? {});
 
   // ---------- Group into sections ----------
   const sections: SectionTotals[] = SECTION_DISPLAY_ORDER.filter((key) => ws[key]).map((key) => {
