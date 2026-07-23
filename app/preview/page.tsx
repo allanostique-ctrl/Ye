@@ -103,7 +103,7 @@ export default function ProposalPage() {
 
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Priced Line Items</p>
-          <MaterialLaborList result={result} />
+          <MaterialLaborList result={result} customItems={job.draft.customLineItems} />
         </div>
 
         <div className="flex justify-end">

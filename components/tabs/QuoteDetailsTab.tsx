@@ -3,10 +3,12 @@
 import {
   CalcRulesConfig,
   CalculatorDraft,
+  CustomLineItem,
   PriceBook,
   PriceBookItem,
   SidingTypeRow,
   WORK_SECTIONS,
+  emptyCustomLineItem,
   sidingKey,
 } from '@/lib/types';
 import { BRANDS, Brand, STYLES, Style, brandSupportsPrimed } from '@/lib/brands';
@@ -187,6 +189,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
   const em = effectiveMeasurements(draft.measurements);
   const accessoryItems = priceBook.items.filter((i) => i.category === 'siding-accessory' && i.active);
   const result = computeCalculation(draft, priceBook, calcRules);
+  const suppressedCount = Object.values(draft.lineItemOverrides).filter((o) => o.suppressed).length;
   const multiSection = draft.measurements.multiSection;
   const sections = draft.measurements.sections;
 
@@ -294,6 +297,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
       const cleaned: typeof next = {};
       if (next.materialCost !== undefined) cleaned.materialCost = next.materialCost;
       if (next.laborCost !== undefined) cleaned.laborCost = next.laborCost;
+      if (next.suppressed) cleaned.suppressed = true;
       const nextOverrides = { ...d.lineItemOverrides };
       if (Object.keys(cleaned).length === 0) {
         delete nextOverrides[overrideKey];
@@ -302,6 +306,45 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
       }
       return { ...d, lineItemOverrides: nextOverrides };
     });
+  }
+
+  /** A manual "delete" of a computed line — removes it from the quote entirely rather
+   *  than zeroing its cost, while keeping any Material $/Labor $ correction already on
+   *  it so restoring brings the line back exactly as it was. */
+  function handleRemoveLine(overrideKey: string) {
+    updateDraft((d) => ({
+      ...d,
+      lineItemOverrides: {
+        ...d.lineItemOverrides,
+        [overrideKey]: { ...d.lineItemOverrides[overrideKey], suppressed: true },
+      },
+    }));
+  }
+
+  function handleRestoreSuppressed() {
+    updateDraft((d) => {
+      const nextOverrides: typeof d.lineItemOverrides = {};
+      for (const [key, override] of Object.entries(d.lineItemOverrides)) {
+        const { suppressed, ...rest } = override;
+        if (Object.keys(rest).length > 0) nextOverrides[key] = rest;
+      }
+      return { ...d, lineItemOverrides: nextOverrides };
+    });
+  }
+
+  function handleAddCustomItem() {
+    updateDraft((d) => ({ ...d, customLineItems: [...d.customLineItems, emptyCustomLineItem()] }));
+  }
+
+  function handleUpdateCustomItem(id: string, patch: Partial<CustomLineItem>) {
+    updateDraft((d) => ({
+      ...d,
+      customLineItems: d.customLineItems.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }));
+  }
+
+  function handleRemoveCustomItem(id: string) {
+    updateDraft((d) => ({ ...d, customLineItems: d.customLineItems.filter((c) => c.id !== id) }));
   }
 
   return (
@@ -626,7 +669,18 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold">Material and Labor List</h2>
-        <MaterialLaborList result={result} exportFileName="material-and-labor-list.csv" onOverride={handleOverride} />
+        <MaterialLaborList
+          result={result}
+          exportFileName="material-and-labor-list.csv"
+          onOverride={handleOverride}
+          onRemoveLine={handleRemoveLine}
+          suppressedCount={suppressedCount}
+          onRestoreSuppressed={handleRestoreSuppressed}
+          customItems={draft.customLineItems}
+          onAddCustomItem={handleAddCustomItem}
+          onUpdateCustomItem={handleUpdateCustomItem}
+          onRemoveCustomItem={handleRemoveCustomItem}
+        />
       </div>
 
       <NextButton onClick={onNext} label="Next: Proposal" />

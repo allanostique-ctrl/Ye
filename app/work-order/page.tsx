@@ -64,7 +64,11 @@ export default function WorkOrderPage() {
 
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Material &amp; Labor Breakdown</p>
-          <MaterialLaborList result={result} exportFileName="material-and-labor-breakdown.csv" />
+          <MaterialLaborList
+            result={result}
+            exportFileName="material-and-labor-breakdown.csv"
+            customItems={job.draft.customLineItems}
+          />
         </div>
 
         <div className="flex justify-end">

@@ -107,8 +107,13 @@ function linesFromPicks(section: WorkSectionKey, picks: LineItemPick[], priceBoo
 }
 
 /** Applies any manual Material $/Labor $ corrections on top of the computed values, keyed
- *  by each line's stable overrideKey so they survive recalculation. */
-function applyOverrides(lines: ComputedLineItem[], overrides: Record<string, { materialCost?: number; laborCost?: number }>): void {
+ *  by each line's stable overrideKey so they survive recalculation. Lines the user
+ *  manually deleted (`suppressed`) are dropped entirely — a hard removal from the quote,
+ *  not just a zeroed-out cost. */
+function applyOverrides(
+  lines: ComputedLineItem[],
+  overrides: Record<string, { materialCost?: number; laborCost?: number; suppressed?: boolean }>
+): ComputedLineItem[] {
   for (const line of lines) {
     const override = overrides[line.overrideKey];
     if (!override) continue;
@@ -122,6 +127,7 @@ function applyOverrides(lines: ComputedLineItem[], overrides: Record<string, { m
     }
     line.totalCost = line.materialCost + line.laborCost;
   }
+  return lines.filter((line) => !overrides[line.overrideKey]?.suppressed);
 }
 
 export function computeCalculation(
@@ -397,11 +403,37 @@ export function computeCalculation(
     if (otc.scaffoldingLiftRental) maybeAdd('otc-scaffolding-lift', 1, 'otc-scaffoldingLift');
   }
 
-  applyOverrides(lines, draft.lineItemOverrides ?? {});
+  const visibleLines = applyOverrides(lines, draft.lineItemOverrides ?? {});
+
+  // ---------- Custom (ad-hoc) line items ----------
+  // Free-form entries the user typed in directly — not tied to a Price Book product or
+  // any structured input, so they skip waste/rounding math and go straight in as-is.
+  for (const custom of draft.customLineItems ?? []) {
+    const materialCost = Math.round(custom.materialCost * 100) / 100;
+    const laborCost = Math.round(custom.laborCost * 100) / 100;
+    visibleLines.push({
+      id: nextLineId(),
+      section: 'customItems',
+      productId: null,
+      name: custom.name.trim() || 'Custom Item',
+      brand: 'Universal',
+      unit: custom.unit,
+      qty: custom.qty,
+      purchaseQty: custom.qty,
+      coveragePerUnit: 1,
+      materialUnitPrice: custom.qty > 0 ? materialCost / custom.qty : materialCost,
+      laborRate: custom.qty > 0 ? laborCost / custom.qty : laborCost,
+      materialCost,
+      laborCost,
+      totalCost: materialCost + laborCost,
+      overrideKey: `custom-${custom.id}`,
+      overridden: { material: false, labor: false },
+    });
+  }
 
   // ---------- Group into sections ----------
   const sections: SectionTotals[] = SECTION_DISPLAY_ORDER.filter((key) => ws[key]).map((key) => {
-    const items = lines.filter((l) => l.section === key);
+    const items = visibleLines.filter((l) => l.section === key);
     const materialSubtotal = items.reduce((s, l) => s + l.materialCost, 0);
     const laborSubtotal = items.reduce((s, l) => s + l.laborCost, 0);
     return {

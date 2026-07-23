@@ -17,7 +17,8 @@ export type WorkSectionKey =
   | 'doorWindowInstalls'
   | 'paintingCoating'
   | 'equipmentRental'
-  | 'oneTimeCharges';
+  | 'oneTimeCharges'
+  | 'customItems';
 
 export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
   { key: 'siding', label: 'Siding' },
@@ -49,11 +50,15 @@ export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
   'paintingCoating',
   'equipmentRental',
   'oneTimeCharges',
+  'customItems',
 ];
 
-export const SECTION_LABELS: Record<WorkSectionKey, string> = Object.fromEntries(
-  WORK_SECTIONS.map((s) => [s.key, s.label])
-) as Record<WorkSectionKey, string>;
+/** 'customItems' isn't in WORK_SECTIONS (no Checklist toggle for it — it's always on,
+ *  see defaultWorkSections), so it needs its own label entry here. */
+export const SECTION_LABELS: Record<WorkSectionKey, string> = {
+  ...(Object.fromEntries(WORK_SECTIONS.map((s) => [s.key, s.label])) as Record<WorkSectionKey, string>),
+  customItems: 'Custom Items',
+};
 
 export function defaultWorkSections(): Record<WorkSectionKey, boolean> {
   return {
@@ -70,6 +75,9 @@ export function defaultWorkSections(): Record<WorkSectionKey, boolean> {
     paintingCoating: false,
     equipmentRental: false,
     oneTimeCharges: false,
+    // Always on — manually added custom line items aren't gated behind a Checklist
+    // toggle, there's nothing to switch off.
+    customItems: true,
   };
 }
 
@@ -262,6 +270,30 @@ export interface LineItemPick {
   qty: number;
 }
 
+// ---------- Custom (ad-hoc) line items ----------
+
+/** A free-form line item the user typed in directly — not tied to any Price Book
+ *  product, for anything the structured Quote Details inputs don't cover. */
+export interface CustomLineItem {
+  id: ID;
+  name: string;
+  qty: number;
+  unit: Unit;
+  materialCost: number;
+  laborCost: number;
+}
+
+export function emptyCustomLineItem(): CustomLineItem {
+  return {
+    id: (globalThis.crypto?.randomUUID?.() ?? String(Math.random())) as ID,
+    name: '',
+    qty: 1,
+    unit: 'each',
+    materialCost: 0,
+    laborCost: 0,
+  };
+}
+
 // ---------- Section specs ----------
 
 export interface SoffitSpec {
@@ -438,10 +470,12 @@ export function calcRulesFor(config: CalcRulesConfig, key: CalcRuleBrandKey): Br
 // ---------- Calculator draft (per job) ----------
 
 /** A one-off manual correction to a single computed line's Material $ and/or Labor $,
- *  keyed by that line's stable origin key (see engine.ts) so it survives recalculation. */
+ *  keyed by that line's stable origin key (see engine.ts) so it survives recalculation.
+ *  `suppressed` removes the line from the quote entirely (a manual "delete"). */
 export interface LineItemOverride {
   materialCost?: number;
   laborCost?: number;
+  suppressed?: boolean;
 }
 
 export interface CalculatorDraft {
@@ -452,6 +486,7 @@ export interface CalculatorDraft {
   quoteDetails: QuoteDetails;
   sidingTypeRows: SidingTypeRow[];
   lineItemOverrides: Record<string, LineItemOverride>;
+  customLineItems: CustomLineItem[];
   updatedAt: string;
 }
 
@@ -464,6 +499,7 @@ export function defaultDraft(jobId: ID): CalculatorDraft {
     quoteDetails: defaultQuoteDetails(),
     sidingTypeRows: [],
     lineItemOverrides: {},
+    customLineItems: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -529,8 +565,12 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
       ...draft.quoteDetails,
       equipmentRental: draft.quoteDetails?.equipmentRental ?? [],
     },
+    // Always on — there's no Checklist toggle for custom items, so old saved drafts
+    // (missing the key entirely) must still get it, not silently default to off.
+    workSections: { ...draft.workSections, customItems: true },
     sidingTypeRows: dedupedRows,
     lineItemOverrides: draft.lineItemOverrides ?? {},
+    customLineItems: draft.customLineItems ?? [],
   };
 }
 
