@@ -269,14 +269,8 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
           {m.multiSection ? '☑' : '☐'} Multiple siding areas — divide the totals above across sections
         </label>
         <p className="mt-2 text-xs text-gray-500">
-          Turn this on when a job mixes siding materials across different elevations and HOVER&rsquo;s single facade
-          total doesn&rsquo;t break things out the way you need. The Reference Measurements above stay put as your
-          total; this table lets you split facade area, openings, corners, and starter length across named sections,
-          and the section totals — not the reference row — feed the rest of the job. Pick a siding material per
-          section below and it auto-checks that combo in Checklist and links the section straight to its Quote
-          Details row, area included. When two sections share the same material, only the first one needs openings,
-          corners, and starter length filled in — they both feed the same Quote Details row either way, so only
-          facade area needs to be split between them.
+          For jobs mixing siding materials across elevations. Split the totals above by section below; picking a
+          material per section links it straight to Checklist and Quote Details.
         </p>
       </div>
 
@@ -353,7 +347,7 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                     <td className="font-medium">
                       {f.label} <span className="text-gray-400">({f.unit})</span>
                     </td>
-                    {m.sections.map((section) => {
+                    {m.sections.map((section, sectionIndex) => {
                       const isDuplicateMaterial = isDedupedField && !dedupPrimaryIds.has(section.id);
                       if (isDuplicateMaterial) {
                         const primaryName = m.sections.find(
@@ -371,6 +365,17 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                           </td>
                         );
                       }
+                      // Section 1 suggests the full HOVER max; each section after that
+                      // suggests whatever's left once the earlier (counted) sections'
+                      // values are subtracted out.
+                      let consumed = 0;
+                      for (let i = 0; i < sectionIndex; i += 1) {
+                        const prior = m.sections[i];
+                        const counted = !isDedupedField || dedupPrimaryIds.has(prior.id);
+                        if (counted) consumed += prior[f.key] || 0;
+                      }
+                      const suggestion = reference > 0 ? Math.round((reference - consumed) * 100) / 100 : 0;
+                      const showSuggestion = suggestion > 0 && (section[f.key] || 0) === 0;
                       return (
                         <td key={section.id}>
                           <NumericInput
@@ -378,6 +383,14 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                             value={section[f.key]}
                             onChange={(v) => updateSection(section.id, { [f.key]: v } as any)}
                           />
+                          {showSuggestion && (
+                            <button
+                              className="mt-1 block text-xs text-brand-600 underline"
+                              onClick={() => updateSection(section.id, { [f.key]: suggestion } as any)}
+                            >
+                              Use {fmt(suggestion)}
+                            </button>
+                          )}
                         </td>
                       );
                     })}

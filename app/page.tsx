@@ -103,7 +103,11 @@ export default function JobsPage() {
             <tbody>
               {sortedJobs.map((job) => (
                 <tr key={job.id}>
-                  <td className="font-semibold">{job.name}</td>
+                  <td className="font-semibold">
+                    <button className="underline-offset-2 hover:underline" onClick={() => handleOpen(job)}>
+                      {job.name}
+                    </button>
+                  </td>
                   <td>{job.customerName || '—'}</td>
                   <td>{job.salesRep || '—'}</td>
                   <td>{formatDate(job.updatedAt)}</td>
