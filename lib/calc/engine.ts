@@ -415,17 +415,14 @@ export function computeCalculation(
     lines.push(...linesFromPicks('paintingCoating', draft.quoteDetails.paintingCoating, priceBook));
   }
 
-  // ---------- Equipment Rental ----------
-  if (ws.equipmentRental) {
-    lines.push(...linesFromPicks('equipmentRental', draft.quoteDetails.equipmentRental, priceBook));
-  }
+  // ---------- Requirements (Equipment Rental + One-Time Charges, always on) ----------
+  if (ws.requirements) {
+    lines.push(...linesFromPicks('requirements', draft.quoteDetails.equipmentRental, priceBook));
 
-  // ---------- One-Time Charges ----------
-  if (ws.oneTimeCharges) {
     const otc = draft.quoteDetails.oneTimeCharges;
     const maybeAdd = (id: string, qty: number, overrideKey: string) => {
       const item = findItem(priceBook, id);
-      if (item && qty > 0) lines.push(buildLine('oneTimeCharges', item, qty, 0, 'exact', 1, overrideKey));
+      if (item && qty > 0) lines.push(buildLine('requirements', item, qty, 0, 'exact', 1, overrideKey));
     };
     if (otc.threeStory) maybeAdd('otc-three-story', 1, 'otc-threeStory');
     if (otc.osbInsulationBoardSqft > 0) maybeAdd('otc-osb-replacement', otc.osbInsulationBoardSqft, 'otc-osb');
@@ -435,6 +432,20 @@ export function computeCalculation(
     if (otc.materialDeliveryFee) maybeAdd('otc-material-delivery', 1, 'otc-materialDelivery');
     if (otc.permitFee) maybeAdd('otc-permit-fee', 1, 'otc-permitFee');
     if (otc.scaffoldingLiftRental) maybeAdd('otc-scaffolding-lift', 1, 'otc-scaffoldingLift');
+  }
+
+  // ---------- Painting prep add-ons ----------
+  if (ws.paintingCoating) {
+    const prep = draft.quoteDetails.paintingPrep;
+    const facadeArea = effectiveMeasurements(draft.measurements).facadeAreaSqft;
+    if (prep.powerWash) {
+      const item = findItem(priceBook, 'paint-powerwash');
+      if (item && facadeArea > 0) lines.push(buildLine('paintingCoating', item, facadeArea, item.wastePct, 'up', 1, 'painting-powerwash'));
+    }
+    if (prep.heavyPrep) {
+      const item = findItem(priceBook, 'paint-heavy-prep');
+      if (item && facadeArea > 0) lines.push(buildLine('paintingCoating', item, facadeArea, item.wastePct, 'up', 1, 'painting-heavyprep'));
+    }
   }
 
   const visibleLines = applyOverrides(lines, draft.lineItemOverrides ?? {});

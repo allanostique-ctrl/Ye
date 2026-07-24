@@ -4,10 +4,15 @@ import {
   CalcRulesConfig,
   CalculatorDraft,
   CustomLineItem,
+  FURRING_WOOD_TYPES,
+  FurringWoodType,
+  PAINTING_SURFACE_TYPES,
+  PaintingSurfaceType,
   PriceBook,
   PriceBookItem,
   SidingTypeRow,
-  WORK_SECTIONS,
+  WRAPS_MATERIAL_TYPES,
+  WrapsMaterialType,
   emptyCustomLineItem,
   sidingKey,
 } from '@/lib/types';
@@ -188,6 +193,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
   const qd = draft.quoteDetails;
   const em = effectiveMeasurements(draft.measurements);
   const accessoryItems = priceBook.items.filter((i) => i.category === 'siding-accessory' && i.active);
+  const equipmentItems = priceBook.items.filter((i) => i.category === 'equipment-rental' && i.active);
   const result = computeCalculation(draft, priceBook, calcRules);
   const suppressedCount = Object.values(draft.lineItemOverrides).filter((o) => o.suppressed).length;
   const multiSection = draft.measurements.multiSection;
@@ -347,6 +353,23 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
     updateDraft((d) => ({ ...d, customLineItems: d.customLineItems.filter((c) => c.id !== id) }));
   }
 
+  function toggleEquipmentPick(productId: string) {
+    updateDraft((d) => {
+      const exists = d.quoteDetails.equipmentRental.some((p) => p.productId === productId);
+      const next = exists
+        ? d.quoteDetails.equipmentRental.filter((p) => p.productId !== productId)
+        : [...d.quoteDetails.equipmentRental, { id: crypto.randomUUID(), productId, qty: 1 }];
+      return { ...d, quoteDetails: { ...d.quoteDetails, equipmentRental: next } };
+    });
+  }
+
+  function togglePaintingPrep(key: 'heavyPrep' | 'powerWash') {
+    updateDraft((d) => ({
+      ...d,
+      quoteDetails: { ...d.quoteDetails, paintingPrep: { ...d.quoteDetails.paintingPrep, [key]: !d.quoteDetails.paintingPrep[key] } },
+    }));
+  }
+
   return (
     <div className="space-y-6">
       <div className="card overflow-x-auto">
@@ -475,7 +498,7 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
 
       {draft.workSections.sheathing && (
         <div className="card">
-          <h2 className="mb-3 text-lg font-bold">{WORK_SECTIONS.find((s) => s.key === 'sheathing')?.label}</h2>
+          <h2 className="mb-3 text-lg font-bold">Sheathing</h2>
           <LineItemPickList
             category="sheathing"
             picks={qd.sheathing}
@@ -515,6 +538,30 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
       {draft.workSections.furringFraming && (
         <div className="card">
           <h2 className="mb-3 text-lg font-bold">Furring &amp; Framing</h2>
+          <div className="mb-4">
+            <label className="field-label">Framing Lumber Size</label>
+            <div className="flex flex-wrap gap-2">
+              {FURRING_WOOD_TYPES.map((wood) => (
+                <button
+                  key={wood}
+                  className="choice-btn"
+                  style={{ width: 'auto' }}
+                  data-active={qd.furringFramingWoodType === wood ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      quoteDetails: {
+                        ...d.quoteDetails,
+                        furringFramingWoodType: d.quoteDetails.furringFramingWoodType === wood ? '' : (wood as FurringWoodType),
+                      },
+                    }))
+                  }
+                >
+                  {wood}
+                </button>
+              ))}
+            </div>
+          </div>
           <LineItemPickList
             category="furring-framing"
             picks={qd.furringFraming}
@@ -527,7 +574,31 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
 
       {draft.workSections.aluminumWraps && (
         <div className="card">
-          <h2 className="mb-3 text-lg font-bold">Aluminum Wraps</h2>
+          <h2 className="mb-3 text-lg font-bold">Wraps</h2>
+          <div className="mb-4">
+            <label className="field-label">Wrap Material</label>
+            <div className="flex flex-wrap gap-2">
+              {WRAPS_MATERIAL_TYPES.map((material) => (
+                <button
+                  key={material}
+                  className="choice-btn"
+                  style={{ width: 'auto' }}
+                  data-active={qd.wrapsMaterialType === material ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      quoteDetails: {
+                        ...d.quoteDetails,
+                        wrapsMaterialType: d.quoteDetails.wrapsMaterialType === material ? '' : (material as WrapsMaterialType),
+                      },
+                    }))
+                  }
+                >
+                  {material}
+                </button>
+              ))}
+            </div>
+          </div>
           <LineItemPickList
             category="aluminum-wraps"
             picks={qd.aluminumWraps}
@@ -538,41 +609,47 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         </div>
       )}
 
-      {draft.workSections.doorWindowInstalls && (
-        <div className="card">
-          <h2 className="mb-3 text-lg font-bold">Door &amp; Window Installs</h2>
-          <LineItemPickList
-            category="door-window-installs"
-            picks={qd.doorWindowInstalls}
-            priceBook={priceBook}
-            defaultQty={1}
-            onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, doorWindowInstalls: picks } }))}
-          />
-        </div>
-      )}
-
       {draft.workSections.paintingCoating && (
         <div className="card">
           <h2 className="mb-3 text-lg font-bold">Painting / Coating</h2>
+          <div className="mb-4">
+            <label className="field-label">Surface Being Painted</label>
+            <div className="flex flex-wrap gap-2">
+              {PAINTING_SURFACE_TYPES.map((surface) => (
+                <button
+                  key={surface}
+                  className="choice-btn"
+                  style={{ width: 'auto' }}
+                  data-active={qd.paintingSurfaceType === surface ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      quoteDetails: {
+                        ...d.quoteDetails,
+                        paintingSurfaceType: d.quoteDetails.paintingSurfaceType === surface ? '' : (surface as PaintingSurfaceType),
+                      },
+                    }))
+                  }
+                >
+                  {surface}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button className="pill" data-active={qd.paintingPrep.heavyPrep ? 'true' : 'false'} onClick={() => togglePaintingPrep('heavyPrep')}>
+              {qd.paintingPrep.heavyPrep ? '☑' : '☐'} Heavy Prep (scraping/sanding)
+            </button>
+            <button className="pill" data-active={qd.paintingPrep.powerWash ? 'true' : 'false'} onClick={() => togglePaintingPrep('powerWash')}>
+              {qd.paintingPrep.powerWash ? '☑' : '☐'} Power Wash
+            </button>
+          </div>
           <LineItemPickList
             category="painting-coating"
             picks={qd.paintingCoating}
             priceBook={priceBook}
             defaultQty={em.facadeAreaSqft}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, paintingCoating: picks } }))}
-          />
-        </div>
-      )}
-
-      {draft.workSections.equipmentRental && (
-        <div className="card">
-          <h2 className="mb-3 text-lg font-bold">Equipment Rental</h2>
-          <LineItemPickList
-            category="equipment-rental"
-            picks={qd.equipmentRental}
-            priceBook={priceBook}
-            defaultQty={1}
-            onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, equipmentRental: picks } }))}
           />
         </div>
       )}
@@ -607,65 +684,74 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         </div>
       )}
 
-      {draft.workSections.oneTimeCharges && (
-        <div className="card">
-          <h2 className="mb-3 text-lg font-bold">One-Time Charges</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {(
-              [
-                ['threeStory', '3-Story Charge', 'toggle'],
-                ['tripCharge', 'Trip Charge', 'toggle'],
-                ['laborMinimum', 'Labor Minimum', 'toggle'],
-                ['materialDeliveryFee', 'Material Delivery Fee', 'toggle'],
-                ['permitFee', 'Permit Fee', 'toggle'],
-                ['scaffoldingLiftRental', 'Scaffolding / Lift Rental', 'toggle'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                className="pill"
-                data-active={qd.oneTimeCharges[key] ? 'true' : 'false'}
-                onClick={() =>
-                  updateDraft((d) => ({
-                    ...d,
-                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, [key]: !d.quoteDetails.oneTimeCharges[key] } },
-                  }))
-                }
-              >
-                {qd.oneTimeCharges[key] ? '☑' : '☐'} {label}
+      <div className="card">
+        <h2 className="mb-3 text-lg font-bold">Requirements</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Common jobsite requirements — click to add or remove from this quote.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {equipmentItems.map((item) => {
+            const isOn = qd.equipmentRental.some((p) => p.productId === item.id);
+            return (
+              <button key={item.id} className="pill" data-active={isOn ? 'true' : 'false'} onClick={() => toggleEquipmentPick(item.id)}>
+                {isOn ? '☑' : '☐'} {item.name}
               </button>
-            ))}
+            );
+          })}
+          {(
+            [
+              ['threeStory', '3-Story Charge', 'toggle'],
+              ['tripCharge', 'Trip Charge', 'toggle'],
+              ['laborMinimum', 'Labor Minimum', 'toggle'],
+              ['materialDeliveryFee', 'Material Delivery Fee', 'toggle'],
+              ['permitFee', 'Permitting', 'toggle'],
+              ['scaffoldingLiftRental', 'Scaffolding / Lift Rental', 'toggle'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              className="pill"
+              data-active={qd.oneTimeCharges[key] ? 'true' : 'false'}
+              onClick={() =>
+                updateDraft((d) => ({
+                  ...d,
+                  quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, [key]: !d.quoteDetails.oneTimeCharges[key] } },
+                }))
+              }
+            >
+              {qd.oneTimeCharges[key] ? '☑' : '☐'} {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="field-label">OSB / Insulation Board (sqft)</label>
+            <NumericInput
+              className="field-input"
+              value={qd.oneTimeCharges.osbInsulationBoardSqft}
+              onChange={(v) =>
+                updateDraft((d) => ({
+                  ...d,
+                  quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, osbInsulationBoardSqft: v } },
+                }))
+              }
+            />
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="field-label">OSB / Insulation Board (sqft)</label>
-              <NumericInput
-                className="field-input"
-                value={qd.oneTimeCharges.osbInsulationBoardSqft}
-                onChange={(v) =>
-                  updateDraft((d) => ({
-                    ...d,
-                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, osbInsulationBoardSqft: v } },
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <label className="field-label">Detach &amp; Reset Lights (qty)</label>
-              <NumericInput
-                className="field-input"
-                value={qd.oneTimeCharges.detachResetLightQty}
-                onChange={(v) =>
-                  updateDraft((d) => ({
-                    ...d,
-                    quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, detachResetLightQty: v } },
-                  }))
-                }
-              />
-            </div>
+          <div>
+            <label className="field-label">Detach &amp; Reset Lights (qty)</label>
+            <NumericInput
+              className="field-input"
+              value={qd.oneTimeCharges.detachResetLightQty}
+              onChange={(v) =>
+                updateDraft((d) => ({
+                  ...d,
+                  quoteDetails: { ...d.quoteDetails, oneTimeCharges: { ...d.quoteDetails.oneTimeCharges, detachResetLightQty: v } },
+                }))
+              }
+            />
           </div>
         </div>
-      )}
+      </div>
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold">Material and Labor List</h2>

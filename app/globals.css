@@ -146,6 +146,36 @@ textarea.field-input {
   border-color: #93b4f8;
 }
 
+/** A choice-group button (dropdown/checkbox replacements) — filled solid blue when
+ *  selected, unlike the lighter-tint .pill used for toggles elsewhere. */
+.choice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d3d9e3;
+  background: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475269;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+  width: 100%;
+}
+
+.choice-btn[data-active="true"] {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
+.choice-btn:hover {
+  border-color: #93b4f8;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

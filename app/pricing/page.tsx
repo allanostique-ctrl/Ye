@@ -26,7 +26,7 @@ const OTHER_CATEGORIES: { key: Category; title: string }[] = [
   { key: 'fixtures', title: 'Fixtures' },
   { key: 'demo-removal', title: 'Demo & Removal' },
   { key: 'furring-framing', title: 'Furring & Framing' },
-  { key: 'aluminum-wraps', title: 'Aluminum Wraps' },
+  { key: 'aluminum-wraps', title: 'Wraps' },
   { key: 'door-window-installs', title: 'Door & Window Installs' },
   { key: 'painting-coating', title: 'Painting / Coating' },
   { key: 'equipment-rental', title: 'Equipment Rental' },

@@ -599,6 +599,8 @@ function paintingItems(): PriceBookItem[] {
   return [
     item({ id: 'paint-trim', category: 'painting-coating', brand: 'Universal', style: '', primed: false, name: 'Trim Paint / Coating', unit: 'lnft', coveragePerUnit: 40, wastePct: 5, materialPrice: 2.75, laborRate: 0.85 }),
     item({ id: 'paint-siding-touchup', category: 'painting-coating', brand: 'Universal', style: '', primed: false, name: 'Siding Painting / Staining', unit: 'sqft', coveragePerUnit: 400, wastePct: 5, materialPrice: 0.55, laborRate: 0.95 }),
+    item({ id: 'paint-powerwash', category: 'painting-coating', brand: 'Universal', style: '', primed: false, name: 'Power Wash', unit: 'sqft', coveragePerUnit: 1, wastePct: 0, materialPrice: 0.05, laborRate: 0.12 }),
+    item({ id: 'paint-heavy-prep', category: 'painting-coating', brand: 'Universal', style: '', primed: false, name: 'Heavy Prep (Scraping / Sanding)', unit: 'sqft', coveragePerUnit: 1, wastePct: 0, materialPrice: 0.1, laborRate: 0.45 }),
   ];
 }
 

@@ -17,8 +17,7 @@ export type WorkSectionKey =
   | 'aluminumWraps'
   | 'doorWindowInstalls'
   | 'paintingCoating'
-  | 'equipmentRental'
-  | 'oneTimeCharges'
+  | 'requirements'
   | 'customItems';
 
 export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
@@ -30,11 +29,8 @@ export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
   { key: 'fixtures', label: 'Fixtures' },
   { key: 'demoRemoval', label: 'Demo & Removal' },
   { key: 'furringFraming', label: 'Furring & Framing' },
-  { key: 'aluminumWraps', label: 'Aluminum Wraps' },
-  { key: 'doorWindowInstalls', label: 'Door & Window Installs' },
+  { key: 'aluminumWraps', label: 'Wraps' },
   { key: 'paintingCoating', label: 'Painting/Coating' },
-  { key: 'equipmentRental', label: 'Equipment Rental' },
-  { key: 'oneTimeCharges', label: 'One-Time Charges' },
 ];
 
 export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
@@ -50,17 +46,19 @@ export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
   'aluminumWraps',
   'doorWindowInstalls',
   'paintingCoating',
-  'equipmentRental',
-  'oneTimeCharges',
+  'requirements',
   'customItems',
 ];
 
-/** 'customItems' and 'weatherBarrier' aren't in WORK_SECTIONS (no Checklist toggle for
- *  either — both are always on, see defaultWorkSections), so they need their own label
- *  entries here. */
+/** 'customItems', 'weatherBarrier', 'requirements', and 'doorWindowInstalls' aren't in
+ *  WORK_SECTIONS — the first three are always on with no Checklist toggle (see
+ *  defaultWorkSections), and doorWindowInstalls no longer has a toggle at all — so they
+ *  need their own label entries here. */
 export const SECTION_LABELS: Record<WorkSectionKey, string> = {
   ...(Object.fromEntries(WORK_SECTIONS.map((s) => [s.key, s.label])) as Record<WorkSectionKey, string>),
   weatherBarrier: 'House Wrap & Flashing',
+  requirements: 'Requirements',
+  doorWindowInstalls: 'Door & Window Installs',
   customItems: 'Custom Items',
 };
 
@@ -72,17 +70,20 @@ export function defaultWorkSections(): Record<WorkSectionKey, boolean> {
     fascia: false,
     gutters: false,
     fixtures: false,
-    demoRemoval: false,
+    // Default on for a new job, alongside Siding.
+    demoRemoval: true,
     furringFraming: false,
     aluminumWraps: false,
+    // No Checklist toggle anymore — stays off for every new job.
     doorWindowInstalls: false,
     paintingCoating: false,
-    equipmentRental: false,
-    oneTimeCharges: false,
     // Always on — house wrap, seam tape, Vycor tape, and window head flashing auto-populate
     // from measurements on every job, no Checklist toggle to remember; delete the ones a
     // job doesn't need straight from the Material and Labor List.
     weatherBarrier: true,
+    // Always on — Dumpster/Toilet/Boom Crane/Permitting/etc. are common enough to just
+    // always offer, no Checklist toggle to remember.
+    requirements: true,
     // Always on — manually added custom line items aren't gated behind a Checklist
     // toggle, there's nothing to switch off.
     customItems: true,
@@ -345,6 +346,24 @@ export function defaultOneTimeCharges(): OneTimeCharges {
   };
 }
 
+export const FURRING_WOOD_TYPES = ['2x4', '4x4', '4x6'] as const;
+export type FurringWoodType = (typeof FURRING_WOOD_TYPES)[number];
+
+export const WRAPS_MATERIAL_TYPES = ['Aluminum', 'James Hardie', 'LP SmartSide'] as const;
+export type WrapsMaterialType = (typeof WRAPS_MATERIAL_TYPES)[number];
+
+export const PAINTING_SURFACE_TYPES = ['Siding', 'Brick', 'Hardie / Fiber Cement', 'Wood', 'Stucco', 'Trim Only', 'Other'] as const;
+export type PaintingSurfaceType = (typeof PAINTING_SURFACE_TYPES)[number];
+
+export interface PaintingPrep {
+  heavyPrep: boolean;
+  powerWash: boolean;
+}
+
+export function defaultPaintingPrep(): PaintingPrep {
+  return { heavyPrep: false, powerWash: false };
+}
+
 export interface QuoteDetails {
   /** Selected demo-removal price-book line items (siding tear-off materials). */
   demolitionMaterials: LineItemPick[];
@@ -362,9 +381,15 @@ export interface QuoteDetails {
   gutters: GuttersSpec;
   fixtures: LineItemPick[];
   furringFraming: LineItemPick[];
+  /** Purely descriptive — doesn't filter or gate the Furring & Framing pick list. */
+  furringFramingWoodType: FurringWoodType | '';
   aluminumWraps: LineItemPick[];
+  /** Purely descriptive — doesn't filter or gate the Wraps pick list. */
+  wrapsMaterialType: WrapsMaterialType | '';
   doorWindowInstalls: LineItemPick[];
   paintingCoating: LineItemPick[];
+  paintingSurfaceType: PaintingSurfaceType | '';
+  paintingPrep: PaintingPrep;
   equipmentRental: LineItemPick[];
   oneTimeCharges: OneTimeCharges;
 }
@@ -380,9 +405,13 @@ export function defaultQuoteDetails(): QuoteDetails {
     gutters: { productId: null, downspoutQty: 0, includeGuards: false, includeRemoval: false },
     fixtures: [],
     furringFraming: [],
+    furringFramingWoodType: '',
     aluminumWraps: [],
+    wrapsMaterialType: '',
     doorWindowInstalls: [],
     paintingCoating: [],
+    paintingSurfaceType: '',
+    paintingPrep: defaultPaintingPrep(),
     equipmentRental: [],
     oneTimeCharges: defaultOneTimeCharges(),
   };
@@ -423,8 +452,8 @@ export const CATEGORY_TO_SECTION: Record<Category, WorkSectionKey> = {
   'aluminum-wraps': 'aluminumWraps',
   'door-window-installs': 'doorWindowInstalls',
   'painting-coating': 'paintingCoating',
-  'equipment-rental': 'equipmentRental',
-  'one-time-charges': 'oneTimeCharges',
+  'equipment-rental': 'requirements',
+  'one-time-charges': 'requirements',
 };
 
 export interface PriceBookItem {
@@ -574,11 +603,16 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
     quoteDetails: {
       ...draft.quoteDetails,
       equipmentRental: draft.quoteDetails?.equipmentRental ?? [],
+      furringFramingWoodType: draft.quoteDetails?.furringFramingWoodType ?? '',
+      wrapsMaterialType: draft.quoteDetails?.wrapsMaterialType ?? '',
+      paintingSurfaceType: draft.quoteDetails?.paintingSurfaceType ?? '',
+      paintingPrep: { ...defaultPaintingPrep(), ...draft.quoteDetails?.paintingPrep },
     },
-    // Always on — no Checklist toggle for custom items or house wrap/flashing, so old
-    // saved drafts (missing these keys entirely) must still get them, not silently
-    // default to off.
-    workSections: { ...draft.workSections, customItems: true, weatherBarrier: true },
+    // Always on — no Checklist toggle for custom items, house wrap/flashing, or
+    // requirements (which folded in the old Equipment Rental / One-Time Charges
+    // toggles), so old saved drafts (missing these keys entirely) must still get them,
+    // not silently default to off.
+    workSections: { ...draft.workSections, customItems: true, weatherBarrier: true, requirements: true },
     sidingTypeRows: dedupedRows,
     lineItemOverrides: draft.lineItemOverrides ?? {},
     customLineItems: draft.customLineItems ?? [],

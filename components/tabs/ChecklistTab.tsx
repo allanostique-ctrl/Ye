@@ -80,48 +80,63 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="field-label">Project Type</label>
-            <select
-              className="field-input"
-              value={cp.projectType}
-              onChange={(e) => updateDraft((d) => ({ ...d, customerProfile: { ...d.customerProfile, projectType: e.target.value } }))}
-            >
-              <option value="">Select…</option>
+            <div className="grid grid-cols-2 gap-2">
               {PROJECT_TYPES.map((t) => (
-                <option key={t} value={t}>
+                <button
+                  key={t}
+                  className="choice-btn"
+                  data-active={cp.projectType === t ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      customerProfile: { ...d.customerProfile, projectType: d.customerProfile.projectType === t ? '' : t },
+                    }))
+                  }
+                >
                   {t}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className="field-label">Customer Type</label>
-            <select
-              className="field-input"
-              value={cp.customerType}
-              onChange={(e) => updateDraft((d) => ({ ...d, customerProfile: { ...d.customerProfile, customerType: e.target.value } }))}
-            >
-              <option value="">Select…</option>
+            <div className="grid grid-cols-2 gap-2">
               {CUSTOMER_TYPES.map((t) => (
-                <option key={t} value={t}>
+                <button
+                  key={t}
+                  className="choice-btn"
+                  data-active={cp.customerType === t ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      customerProfile: { ...d.customerProfile, customerType: d.customerProfile.customerType === t ? '' : t },
+                    }))
+                  }
+                >
                   {t}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className="field-label">Timeline</label>
-            <select
-              className="field-input"
-              value={cp.timeline}
-              onChange={(e) => updateDraft((d) => ({ ...d, customerProfile: { ...d.customerProfile, timeline: e.target.value } }))}
-            >
-              <option value="">Select…</option>
+            <div className="grid grid-cols-2 gap-2">
               {TIMELINES.map((t) => (
-                <option key={t} value={t}>
+                <button
+                  key={t}
+                  className="choice-btn"
+                  data-active={cp.timeline === t ? 'true' : 'false'}
+                  onClick={() =>
+                    updateDraft((d) => ({
+                      ...d,
+                      customerProfile: { ...d.customerProfile, timeline: d.customerProfile.timeline === t ? '' : t },
+                    }))
+                  }
+                >
                   {t}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </div>
         <div className="mt-4 flex items-center gap-4">
@@ -133,19 +148,10 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
             🔥 Hot Lead
           </button>
         </div>
-        <div className="mt-4">
-          <label className="field-label">Notes</label>
-          <textarea
-            className="field-input"
-            rows={3}
-            value={cp.notes}
-            onChange={(e) => updateDraft((d) => ({ ...d, customerProfile: { ...d.customerProfile, notes: e.target.value } }))}
-          />
-        </div>
       </div>
 
       <div className="card">
-        <h2 className="mb-3 text-lg font-bold">Work Included in This Job</h2>
+        <h2 className="mb-3 text-lg font-bold">Scope of Work</h2>
         <div className="flex flex-wrap gap-2">
           {WORK_SECTIONS.map((s) => (
             <button
@@ -180,15 +186,20 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
             {BRANDS.map((brand) => (
               <tr key={brand}>
                 <td className="font-semibold">{brand}</td>
-                {STYLES.map((style) => (
-                  <td key={style}>
-                    <input
-                      type="checkbox"
-                      checked={!!qd.sidingSelections[sidingKey(brand, style)]}
-                      onChange={() => toggleSidingSelection(brand, style)}
-                    />
-                  </td>
-                ))}
+                {STYLES.map((style) => {
+                  const checked = !!qd.sidingSelections[sidingKey(brand, style)];
+                  return (
+                    <td key={style}>
+                      <button
+                        className="choice-btn"
+                        data-active={checked ? 'true' : 'false'}
+                        onClick={() => toggleSidingSelection(brand, style)}
+                      >
+                        {checked ? '✓' : ''}
+                      </button>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -338,6 +349,16 @@ export function ChecklistTab({ draft, updateDraft, priceBook, onNext }: Props) {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-bold">Notes</h2>
+        <textarea
+          className="field-input"
+          rows={4}
+          value={cp.notes}
+          onChange={(e) => updateDraft((d) => ({ ...d, customerProfile: { ...d.customerProfile, notes: e.target.value } }))}
+        />
       </div>
 
       <NextButton onClick={onNext} label="Next: Quote Details" />
