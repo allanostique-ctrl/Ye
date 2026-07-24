@@ -12,6 +12,12 @@ import { buildDefaultCalcRules, CALC_RULES_SCHEMA_VERSION } from './defaultCalcR
 const CATEGORY_CORRECTIONS: Record<string, Category> = {
   'otc-dumpster': 'equipment-rental',
   'otc-portable-toilet': 'equipment-rental',
+  // House wrap / flashing moved out of Sheathing and Door & Window Installs into their
+  // own always-on section — see 'weatherBarrier' in types.ts.
+  'sheathing-housewrap': 'weather-barrier',
+  'sheathing-housewrap-tape': 'weather-barrier',
+  'vycor-tape': 'weather-barrier',
+  'window-head-flashing': 'weather-barrier',
 };
 
 /**

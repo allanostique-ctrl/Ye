@@ -307,9 +307,18 @@ function sheathingItems(): PriceBookItem[] {
       materialPrice: 21,
       laborRate: 0.75,
     }),
+  ];
+}
+
+/** House wrap, seam tape, Vycor tape, and window head flashing get their own always-on
+ *  section (see 'weatherBarrier' in types.ts) instead of living under Sheathing / Door &
+ *  Window Installs — they auto-populate from measurements on every job rather than
+ *  needing those other sections' Checklist toggles switched on first. */
+function weatherBarrierItems(): PriceBookItem[] {
+  return [
     item({
       id: 'sheathing-housewrap',
-      category: 'sheathing',
+      category: 'weather-barrier',
       brand: 'Universal',
       style: '',
       primed: false,
@@ -322,7 +331,7 @@ function sheathingItems(): PriceBookItem[] {
     }),
     item({
       id: 'sheathing-housewrap-tape',
-      category: 'sheathing',
+      category: 'weather-barrier',
       brand: 'Universal',
       style: '',
       primed: false,
@@ -332,6 +341,32 @@ function sheathingItems(): PriceBookItem[] {
       wastePct: 5,
       materialPrice: 24,
       laborRate: 0.05,
+    }),
+    item({
+      id: 'vycor-tape',
+      category: 'weather-barrier',
+      brand: 'Universal',
+      style: '',
+      primed: false,
+      name: 'Vycor Tape (Window/Door Flashing)',
+      unit: 'lnft',
+      coveragePerUnit: 75,
+      wastePct: 10,
+      materialPrice: 38,
+      laborRate: 0.6,
+    }),
+    item({
+      id: 'window-head-flashing',
+      category: 'weather-barrier',
+      brand: 'Universal',
+      style: '',
+      primed: false,
+      name: 'Window Head Flashing / Drip Cap',
+      unit: 'each',
+      coveragePerUnit: 1,
+      wastePct: 0,
+      materialPrice: 14,
+      laborRate: 12,
     }),
   ];
 }
@@ -557,8 +592,6 @@ function doorWindowItems(): PriceBookItem[] {
     item({ id: 'install-window', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Window Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 375, laborRate: 175 }),
     item({ id: 'install-entry-door', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Entry Door Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 550, laborRate: 250 }),
     item({ id: 'install-storm-door', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Storm Door Install', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 275, laborRate: 125 }),
-    item({ id: 'vycor-tape', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Vycor Tape (Window/Door Flashing)', unit: 'lnft', coveragePerUnit: 75, wastePct: 10, materialPrice: 38, laborRate: 0.6 }),
-    item({ id: 'window-head-flashing', category: 'door-window-installs', brand: 'Universal', style: '', primed: false, name: 'Window Head Flashing / Drip Cap', unit: 'each', coveragePerUnit: 1, wastePct: 0, materialPrice: 14, laborRate: 12 }),
   ];
 }
 
@@ -596,6 +629,7 @@ export function buildDefaultPriceBookItems(): PriceBookItem[] {
     ...sidingItems(),
     ...accessoryItems(),
     ...sheathingItems(),
+    ...weatherBarrierItems(),
     ...soffitItems(),
     ...fasciaItems(),
     ...gutterItems(),

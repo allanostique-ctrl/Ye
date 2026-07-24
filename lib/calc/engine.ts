@@ -13,7 +13,7 @@ import {
 import { brandToCalcRuleKey } from '../brands';
 import { ACCESSORY_IDS } from '../defaultPriceBook';
 import { purchaseQtyFor, Rounding } from './quantity';
-import { effectiveRowArea, measurementsForRow } from './measurements';
+import { effectiveMeasurements, effectiveRowArea, measurementsForRow } from './measurements';
 
 function findItem(priceBook: PriceBook, id: string | null | undefined): PriceBookItem | undefined {
   if (!id) return undefined;
@@ -287,6 +287,40 @@ export function computeCalculation(
           overridden: { material: false, labor: false },
         });
       }
+    }
+  }
+
+  // ---------- House Wrap & Flashing (always on — no Checklist toggle) ----------
+  // Auto-populates from measurements on every job instead of waiting on the Sheathing or
+  // Door & Window Installs toggles; every line still shows even at a $0/zero-qty starting
+  // point so it can be edited or deleted (via the regular line-delete feature) if a job
+  // doesn't need it.
+  {
+    const totalSidingArea = draft.sidingTypeRows.reduce((sum, r) => sum + effectiveRowArea(r, draft.measurements), 0);
+    const em = effectiveMeasurements(draft.measurements);
+
+    const houseWrap = findItem(priceBook, 'sheathing-housewrap');
+    if (houseWrap) {
+      lines.push(buildLine('weatherBarrier', houseWrap, totalSidingArea, houseWrap.wastePct, 'up', 1, 'weatherBarrier-housewrap'));
+    }
+
+    // Seam tape scales with the building's perimeter, which isn't tracked directly —
+    // Level Starter length runs the same perimeter, so it stands in as the closest proxy.
+    const seamTape = findItem(priceBook, 'sheathing-housewrap-tape');
+    if (seamTape) {
+      lines.push(buildLine('weatherBarrier', seamTape, em.starterLengthLnft, seamTape.wastePct, 'up', 1, 'weatherBarrier-seamtape'));
+    }
+
+    const vycorTape = findItem(priceBook, 'vycor-tape');
+    if (vycorTape) {
+      lines.push(buildLine('weatherBarrier', vycorTape, em.openingsPerimeterLnft, vycorTape.wastePct, 'up', 1, 'weatherBarrier-vycortape'));
+    }
+
+    // No window-count measurement exists to auto-derive a quantity from, so this starts
+    // at 0 — still visible and ready for the actual count to be typed in.
+    const headFlashing = findItem(priceBook, 'window-head-flashing');
+    if (headFlashing) {
+      lines.push(buildLine('weatherBarrier', headFlashing, 0, headFlashing.wastePct, 'up', 1, 'weatherBarrier-headflashing'));
     }
   }
 

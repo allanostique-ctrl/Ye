@@ -7,6 +7,7 @@ export type ID = string;
 export type WorkSectionKey =
   | 'siding'
   | 'sheathing'
+  | 'weatherBarrier'
   | 'soffit'
   | 'fascia'
   | 'gutters'
@@ -38,6 +39,7 @@ export const WORK_SECTIONS: { key: WorkSectionKey; label: string }[] = [
 
 export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
   'siding',
+  'weatherBarrier',
   'soffit',
   'fascia',
   'gutters',
@@ -53,10 +55,12 @@ export const SECTION_DISPLAY_ORDER: WorkSectionKey[] = [
   'customItems',
 ];
 
-/** 'customItems' isn't in WORK_SECTIONS (no Checklist toggle for it — it's always on,
- *  see defaultWorkSections), so it needs its own label entry here. */
+/** 'customItems' and 'weatherBarrier' aren't in WORK_SECTIONS (no Checklist toggle for
+ *  either — both are always on, see defaultWorkSections), so they need their own label
+ *  entries here. */
 export const SECTION_LABELS: Record<WorkSectionKey, string> = {
   ...(Object.fromEntries(WORK_SECTIONS.map((s) => [s.key, s.label])) as Record<WorkSectionKey, string>),
+  weatherBarrier: 'House Wrap & Flashing',
   customItems: 'Custom Items',
 };
 
@@ -75,6 +79,10 @@ export function defaultWorkSections(): Record<WorkSectionKey, boolean> {
     paintingCoating: false,
     equipmentRental: false,
     oneTimeCharges: false,
+    // Always on — house wrap, seam tape, Vycor tape, and window head flashing auto-populate
+    // from measurements on every job, no Checklist toggle to remember; delete the ones a
+    // job doesn't need straight from the Material and Labor List.
+    weatherBarrier: true,
     // Always on — manually added custom line items aren't gated behind a Checklist
     // toggle, there's nothing to switch off.
     customItems: true,
@@ -388,6 +396,7 @@ export type Category =
   | 'siding'
   | 'siding-accessory'
   | 'sheathing'
+  | 'weather-barrier'
   | 'soffit'
   | 'fascia'
   | 'gutters'
@@ -404,6 +413,7 @@ export const CATEGORY_TO_SECTION: Record<Category, WorkSectionKey> = {
   siding: 'siding',
   'siding-accessory': 'siding',
   sheathing: 'sheathing',
+  'weather-barrier': 'weatherBarrier',
   soffit: 'soffit',
   fascia: 'fascia',
   gutters: 'gutters',
@@ -565,9 +575,10 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
       ...draft.quoteDetails,
       equipmentRental: draft.quoteDetails?.equipmentRental ?? [],
     },
-    // Always on — there's no Checklist toggle for custom items, so old saved drafts
-    // (missing the key entirely) must still get it, not silently default to off.
-    workSections: { ...draft.workSections, customItems: true },
+    // Always on — no Checklist toggle for custom items or house wrap/flashing, so old
+    // saved drafts (missing these keys entirely) must still get them, not silently
+    // default to off.
+    workSections: { ...draft.workSections, customItems: true, weatherBarrier: true },
     sidingTypeRows: dedupedRows,
     lineItemOverrides: draft.lineItemOverrides ?? {},
     customLineItems: draft.customLineItems ?? [],

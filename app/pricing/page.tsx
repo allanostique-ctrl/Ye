@@ -19,6 +19,7 @@ import { CalcRulesEditor } from '@/components/CalcRulesEditor';
 const OTHER_CATEGORIES: { key: Category; title: string }[] = [
   { key: 'siding-accessory', title: 'Siding Accessories' },
   { key: 'sheathing', title: 'Sheathing' },
+  { key: 'weather-barrier', title: 'House Wrap & Flashing' },
   { key: 'soffit', title: 'Soffit' },
   { key: 'fascia', title: 'Fascia' },
   { key: 'gutters', title: 'Gutters' },
