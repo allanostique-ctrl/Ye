@@ -67,7 +67,6 @@ export default function WorkOrderPage() {
           <MaterialLaborList
             result={result}
             exportFileName="material-and-labor-breakdown.csv"
-            customItems={job.draft.customLineItems}
           />
         </div>
 

@@ -385,7 +385,7 @@ export function MeasurementsTab({ draft, updateDraft, priceBook, onNext }: Props
                           />
                           {showSuggestion && (
                             <button
-                              className="mt-1 block text-xs text-brand-600 underline"
+                              className="suggestion-chip mt-1"
                               onClick={() => updateSection(section.id, { [f.key]: suggestion } as any)}
                             >
                               Use {fmt(suggestion)}

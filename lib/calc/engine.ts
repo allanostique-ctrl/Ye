@@ -51,13 +51,17 @@ function buildLine(
     qty,
     purchaseQty,
     coveragePerUnit: item.coveragePerUnit,
+    wastePct,
+    rounding,
+    laborRateMultiplier,
     materialUnitPrice: item.materialPrice,
     laborRate: item.laborRate,
     materialCost,
     laborCost,
     totalCost: materialCost + laborCost,
     overrideKey,
-    overridden: { material: false, labor: false },
+    overridden: { qty: false, material: false, labor: false },
+    isCustom: false,
   };
 }
 
@@ -112,11 +116,21 @@ function linesFromPicks(section: WorkSectionKey, picks: LineItemPick[], priceBoo
  *  not just a zeroed-out cost. */
 function applyOverrides(
   lines: ComputedLineItem[],
-  overrides: Record<string, { materialCost?: number; laborCost?: number; suppressed?: boolean }>
+  overrides: Record<string, { qty?: number; materialCost?: number; laborCost?: number; suppressed?: boolean }>
 ): ComputedLineItem[] {
   for (const line of lines) {
     const override = overrides[line.overrideKey];
     if (!override) continue;
+    // A qty override recomputes purchase qty and both costs the same way buildLine
+    // originally derived them — applied first so an explicit materialCost/laborCost
+    // override (below) still wins if both are set on the same line.
+    if (override.qty !== undefined && override.qty !== line.qty) {
+      line.qty = override.qty;
+      line.purchaseQty = purchaseQtyFor(override.qty, line.wastePct, line.coveragePerUnit, line.rounding);
+      line.materialCost = Math.round(line.purchaseQty * line.materialUnitPrice * 100) / 100;
+      line.laborCost = Math.round(override.qty * line.laborRate * line.laborRateMultiplier * 100) / 100;
+      line.overridden.qty = true;
+    }
     if (override.materialCost !== undefined) {
       line.materialCost = override.materialCost;
       line.overridden.material = true;
@@ -278,13 +292,17 @@ export function computeCalculation(
           qty: 1,
           purchaseQty: 1,
           coveragePerUnit: 1,
+          wastePct: 0,
+          rounding: 'exact',
+          laborRateMultiplier: 1,
           materialUnitPrice: 0,
           laborRate: topUp,
           materialCost: 0,
           laborCost: topUp,
           totalCost: topUp,
           overrideKey: `siding-labor-min-${bucket}`,
-          overridden: { material: false, labor: false },
+          overridden: { qty: false, material: false, labor: false },
+          isCustom: false,
         });
       }
     }
@@ -458,7 +476,7 @@ export function computeCalculation(
     const laborCost = Math.round(custom.laborCost * 100) / 100;
     visibleLines.push({
       id: nextLineId(),
-      section: 'customItems',
+      section: custom.section,
       productId: null,
       name: custom.name.trim() || 'Custom Item',
       brand: 'Universal',
@@ -466,13 +484,17 @@ export function computeCalculation(
       qty: custom.qty,
       purchaseQty: custom.qty,
       coveragePerUnit: 1,
+      wastePct: 0,
+      rounding: 'exact',
+      laborRateMultiplier: 1,
       materialUnitPrice: custom.qty > 0 ? materialCost / custom.qty : materialCost,
       laborRate: custom.qty > 0 ? laborCost / custom.qty : laborCost,
       materialCost,
       laborCost,
       totalCost: materialCost + laborCost,
       overrideKey: `custom-${custom.id}`,
-      overridden: { material: false, labor: false },
+      overridden: { qty: false, material: false, labor: false },
+      isCustom: true,
     });
   }
 

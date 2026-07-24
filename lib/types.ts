@@ -282,9 +282,13 @@ export interface LineItemPick {
 // ---------- Custom (ad-hoc) line items ----------
 
 /** A free-form line item the user typed in directly — not tied to any Price Book
- *  product, for anything the structured Quote Details inputs don't cover. */
+ *  product, for anything the structured Quote Details inputs don't cover. Tagged with
+ *  the section it belongs to so it shows up right alongside that section's own
+ *  computed lines (e.g. one added from the Sheathing card lives in the Sheathing group),
+ *  rather than in one generic catch-all bucket. */
 export interface CustomLineItem {
   id: ID;
+  section: WorkSectionKey;
   name: string;
   qty: number;
   unit: Unit;
@@ -292,9 +296,10 @@ export interface CustomLineItem {
   laborCost: number;
 }
 
-export function emptyCustomLineItem(): CustomLineItem {
+export function emptyCustomLineItem(section: WorkSectionKey): CustomLineItem {
   return {
     id: (globalThis.crypto?.randomUUID?.() ?? String(Math.random())) as ID,
+    section,
     name: '',
     qty: 1,
     unit: 'each',
@@ -508,10 +513,13 @@ export function calcRulesFor(config: CalcRulesConfig, key: CalcRuleBrandKey): Br
 
 // ---------- Calculator draft (per job) ----------
 
-/** A one-off manual correction to a single computed line's Material $ and/or Labor $,
- *  keyed by that line's stable origin key (see engine.ts) so it survives recalculation.
- *  `suppressed` removes the line from the quote entirely (a manual "delete"). */
+/** A one-off manual correction to a single computed line's quantity and/or Material $ /
+ *  Labor $, keyed by that line's stable origin key (see engine.ts) so it survives
+ *  recalculation. Overriding `qty` recomputes purchase qty and both costs from it (unless
+ *  materialCost/laborCost are ALSO overridden, which win). `suppressed` removes the line
+ *  from the quote entirely (a manual "delete"). */
 export interface LineItemOverride {
+  qty?: number;
   materialCost?: number;
   laborCost?: number;
   suppressed?: boolean;
@@ -615,7 +623,9 @@ export function normalizeDraft(draft: CalculatorDraft): CalculatorDraft {
     workSections: { ...draft.workSections, customItems: true, weatherBarrier: true, requirements: true },
     sidingTypeRows: dedupedRows,
     lineItemOverrides: draft.lineItemOverrides ?? {},
-    customLineItems: draft.customLineItems ?? [],
+    // Custom items didn't used to carry a section — old ones fall back to the generic
+    // catch-all bucket rather than any specific work scope.
+    customLineItems: (draft.customLineItems ?? []).map((c) => ({ ...c, section: c.section ?? 'customItems' })),
   };
 }
 
@@ -646,6 +656,12 @@ export interface ComputedLineItem {
   /** How many `unit`s one purchase unit covers (e.g. 100 sqft per "square") — needed to
    *  turn materialUnitPrice (priced per purchase unit) into a true $/unit figure. */
   coveragePerUnit: number;
+  /** Waste %, purchase rounding mode, and labor rate multiplier this line was built
+   *  with — kept around so a manual qty override can recompute purchase qty and both
+   *  costs the same way buildLine originally did. */
+  wastePct: number;
+  rounding: 'up' | 'nearest' | 'exact';
+  laborRateMultiplier: number;
   materialUnitPrice: number;
   laborRate: number;
   materialCost: number;
@@ -653,7 +669,11 @@ export interface ComputedLineItem {
   totalCost: number;
   /** Stable key identifying this line's origin across recalculations — used to attach a manual override. */
   overrideKey: string;
-  overridden: { material: boolean; labor: boolean };
+  overridden: { qty: boolean; material: boolean; labor: boolean };
+  /** True for a line synthesized directly from a CustomLineItem — the origin id is
+   *  everything after "custom-" in overrideKey. Rendered as editable name/qty/unit
+   *  fields rather than a read-only computed row. */
+  isCustom: boolean;
 }
 
 export interface SectionTotals {

@@ -176,6 +176,27 @@ textarea.field-input {
   border-color: #93b4f8;
 }
 
+/** A quiet inline suggestion (e.g. "Use 2,000") — neutral gray at rest, only turning
+ *  blue on hover so it doesn't compete with real data in the table. */
+.suggestion-chip {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #f3f4f6;
+  color: #6b7690;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.suggestion-chip:hover {
+  background: #eaf1ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

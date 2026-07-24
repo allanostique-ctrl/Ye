@@ -12,6 +12,7 @@ import {
   PriceBookItem,
   SidingTypeRow,
   WRAPS_MATERIAL_TYPES,
+  WorkSectionKey,
   WrapsMaterialType,
   emptyCustomLineItem,
   sidingKey,
@@ -205,6 +206,27 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
     ? sections.filter((s) => !draft.sidingTypeRows.some((r) => r.sectionIds.includes(s.id)))
     : [];
 
+  /** A single work section's slice of `result`, shaped as its own CalculationResult so a
+   *  card can show its own mini Material/Labor preview (with qty override and its own
+   *  "+ Add Custom Line Item" button) right next to that section's inputs. Falls back to
+   *  an empty section rather than omitting the preview, so the Add button is still reachable
+   *  even before any line items exist yet. */
+  function sectionResult(section: WorkSectionKey) {
+    const found = result.sections.find((s) => s.section === section) ?? {
+      section,
+      items: [],
+      materialSubtotal: 0,
+      laborSubtotal: 0,
+      totalSubtotal: 0,
+    };
+    return {
+      sections: [found],
+      materialTotal: found.materialSubtotal,
+      laborTotal: found.laborSubtotal,
+      grandTotal: found.totalSubtotal,
+    };
+  }
+
   function updateRow(id: string, patch: Partial<SidingTypeRow>) {
     updateDraft((d) => {
       const nextRows = d.sidingTypeRows.map((r) => {
@@ -296,11 +318,12 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
     }));
   }
 
-  function handleOverride(overrideKey: string, field: 'materialCost' | 'laborCost', value: number | null) {
+  function handleOverride(overrideKey: string, field: 'qty' | 'materialCost' | 'laborCost', value: number | null) {
     updateDraft((d) => {
       const existing = d.lineItemOverrides[overrideKey] ?? {};
       const next = { ...existing, [field]: value === null ? undefined : value };
       const cleaned: typeof next = {};
+      if (next.qty !== undefined) cleaned.qty = next.qty;
       if (next.materialCost !== undefined) cleaned.materialCost = next.materialCost;
       if (next.laborCost !== undefined) cleaned.laborCost = next.laborCost;
       if (next.suppressed) cleaned.suppressed = true;
@@ -338,8 +361,8 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
     });
   }
 
-  function handleAddCustomItem() {
-    updateDraft((d) => ({ ...d, customLineItems: [...d.customLineItems, emptyCustomLineItem()] }));
+  function handleAddCustomItem(section: WorkSectionKey) {
+    updateDraft((d) => ({ ...d, customLineItems: [...d.customLineItems, emptyCustomLineItem(section)] }));
   }
 
   function handleUpdateCustomItem(id: string, patch: Partial<CustomLineItem>) {
@@ -496,6 +519,17 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         />
       ))}
 
+      <div className="card">
+        <h2 className="mb-3 text-lg font-bold">Siding Material &amp; Labor</h2>
+        <MaterialLaborList
+          result={sectionResult('siding')}
+          onOverride={handleOverride}
+          onAddCustomItem={handleAddCustomItem}
+          onUpdateCustomItem={handleUpdateCustomItem}
+          onRemoveCustomItem={handleRemoveCustomItem}
+        />
+      </div>
+
       {draft.workSections.sheathing && (
         <div className="card">
           <h2 className="mb-3 text-lg font-bold">Sheathing</h2>
@@ -505,6 +539,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             priceBook={priceBook}
             defaultQty={em.facadeAreaSqft}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, sheathing: picks } }))}
+          />
+          <MaterialLaborList
+            result={sectionResult('sheathing')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
           />
         </div>
       )}
@@ -519,6 +560,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             defaultQty={em.facadeAreaSqft}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, demolitionMaterials: picks } }))}
           />
+          <MaterialLaborList
+            result={sectionResult('demoRemoval')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
 
@@ -531,6 +579,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             priceBook={priceBook}
             defaultQty={1}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, fixtures: picks } }))}
+          />
+          <MaterialLaborList
+            result={sectionResult('fixtures')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
           />
         </div>
       )}
@@ -569,6 +624,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             defaultQty={0}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, furringFraming: picks } }))}
           />
+          <MaterialLaborList
+            result={sectionResult('furringFraming')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
 
@@ -605,6 +667,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             priceBook={priceBook}
             defaultQty={1}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, aluminumWraps: picks } }))}
+          />
+          <MaterialLaborList
+            result={sectionResult('aluminumWraps')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
           />
         </div>
       )}
@@ -651,6 +720,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             defaultQty={em.facadeAreaSqft}
             onChange={(picks) => updateDraft((d) => ({ ...d, quoteDetails: { ...d.quoteDetails, paintingCoating: picks } }))}
           />
+          <MaterialLaborList
+            result={sectionResult('paintingCoating')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
 
@@ -658,9 +734,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         <div className="card">
           <h2 className="mb-1 text-lg font-bold">Soffit</h2>
           <p className="mb-3 text-xs text-gray-500">Material and removal choice set in Checklist. Computed below.</p>
-          {result.sections.find((s) => s.section === 'soffit') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'soffit')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
-          )}
+          <MaterialLaborList
+            result={sectionResult('soffit')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
 
@@ -668,9 +748,13 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         <div className="card">
           <h2 className="mb-1 text-lg font-bold">Fascia</h2>
           <p className="mb-3 text-xs text-gray-500">Material and removal choice set in Checklist. Computed below.</p>
-          {result.sections.find((s) => s.section === 'fascia') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'fascia')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
-          )}
+          <MaterialLaborList
+            result={sectionResult('fascia')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
 
@@ -678,11 +762,31 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
         <div className="card">
           <h2 className="mb-1 text-lg font-bold">Gutters</h2>
           <p className="mb-3 text-xs text-gray-500">Size, downspouts, guards, and removal choice set in Checklist. Computed below.</p>
-          {result.sections.find((s) => s.section === 'gutters') && (
-            <MaterialLaborList result={{ sections: [result.sections.find((s) => s.section === 'gutters')!], materialTotal: 0, laborTotal: 0, grandTotal: 0 }} onOverride={handleOverride} />
-          )}
+          <MaterialLaborList
+            result={sectionResult('gutters')}
+            onOverride={handleOverride}
+            onAddCustomItem={handleAddCustomItem}
+            onUpdateCustomItem={handleUpdateCustomItem}
+            onRemoveCustomItem={handleRemoveCustomItem}
+          />
         </div>
       )}
+
+      <div className="card">
+        <h2 className="mb-1 text-lg font-bold">House Wrap &amp; Flashing</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          House wrap, seam tape, Vycor tape, and window head flashing auto-populate from measurements. Delete a line
+          below if a job doesn&rsquo;t need it, or add your own.
+        </p>
+        <MaterialLaborList
+          result={sectionResult('weatherBarrier')}
+          onOverride={handleOverride}
+          onRemoveLine={handleRemoveLine}
+          onAddCustomItem={handleAddCustomItem}
+          onUpdateCustomItem={handleUpdateCustomItem}
+          onRemoveCustomItem={handleRemoveCustomItem}
+        />
+      </div>
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold">Requirements</h2>
@@ -751,10 +855,18 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
             />
           </div>
         </div>
+        <MaterialLaborList
+          result={sectionResult('requirements')}
+          onOverride={handleOverride}
+          onAddCustomItem={handleAddCustomItem}
+          onUpdateCustomItem={handleUpdateCustomItem}
+          onRemoveCustomItem={handleRemoveCustomItem}
+        />
       </div>
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold">Material and Labor List</h2>
+        <p className="mb-3 text-xs text-gray-500">The full quote across every section — the same data shown in each section&rsquo;s own preview above, all in one place.</p>
         <MaterialLaborList
           result={result}
           exportFileName="material-and-labor-list.csv"
@@ -762,7 +874,6 @@ export function QuoteDetailsTab({ draft, updateDraft, priceBook, calcRules, onNe
           onRemoveLine={handleRemoveLine}
           suppressedCount={suppressedCount}
           onRestoreSuppressed={handleRestoreSuppressed}
-          customItems={draft.customLineItems}
           onAddCustomItem={handleAddCustomItem}
           onUpdateCustomItem={handleUpdateCustomItem}
           onRemoveCustomItem={handleRemoveCustomItem}
